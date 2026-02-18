@@ -130,7 +130,7 @@ Keep in mind that you should assign a different name to each worker in its confi
 
 ```python
 NAME_SUBSTITUTIONS = {
-    "nerdoctaxe": "BitAxe Ultra",
+    "nerdoctaxe": "NerdMiner Octaxe Gamma",
     "worker": "NerdMiner v2",
 }
 ```
