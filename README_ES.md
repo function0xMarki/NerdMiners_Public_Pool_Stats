@@ -124,16 +124,19 @@ En caso de que te falte algún programa como Python o pip, te lo dirá, mostrán
 
 ### 3. Personalizar Nombres de Workers *(Opcional)*
 
-Edita `config.py` para establecer nombres personalizados para tus mineros.
+Edita `config.py` para establecer nombres personalizados para tus mineros sobre como se muestran los nombres en los mensajes de Telegram:
 De esta manera puedes asignar un nombre más descriptivo a tu minero relacionado por el nombre del worker que aparece en Public-Pool.
 Ten en cuenta que deberás asignar un nombre diferente a cada worker en la configuración del mismo.
 
 ```python
 NAME_SUBSTITUTIONS = {
-    "nerdoctaxe": "NerdMiner Octaxe Gamma",
-    "worker": "NerdMiner v2",
+    "nerdoctaxe_1": "NerdMiner Octaxe Gamma Casa",
+    "nerdoctaxe_2": "NerdMiner Octaxe Gamma Trabajo",
+    "worker": "NerdMiner v2 Salón",
+    "worker_2": "NerdMiner v2 Oficina",
 }
 ```
+*Para los NerdMiners antiguos que todos reportan como `worker` en la API, el bot asigna IDs incrementales (`worker_1`, `worker_2`, ...). Ejecuta el bot una vez y revisa el log para descubrir los IDs asignados.*
 
 ### 4. Configurar Tarea Cron
 
@@ -176,20 +179,6 @@ Los ajustes configurables están en `config.py`:
 *Cuando el mensaje alcanza la antigüedad de `MESSAGE_EDIT_LIMIT_HOURS`, el bot lo elimina y envía uno nuevo (que se fija automáticamente).*
 
 > **Importante**: Telegram impone un **límite de 48 horas** para los bots — los mensajes con más de 48 horas de antigüedad **no pueden ser editados ni eliminados** a través de la Bot API. El valor por defecto de **45 horas** proporciona un margen de seguridad de 3 horas. **No establezcas este valor por encima de 45**, o el bot podría no ser capaz de eliminar el mensaje antiguo, resultando en mensajes fijados duplicados en el grupo.
-
-### Sustitución de Nombres de Workers
-
-Personaliza cómo aparecen los nombres de los mineros en los mensajes de Telegram:
-
-```python
-NAME_SUBSTITUTIONS = {
-    "nerdoctaxe_1": "NerdMiner Octaxe Gamma Casa",
-    "nerdoctaxe_2": "NerdMiner Octaxe Gamma Trabajo",
-    "worker": "NerdMiner v2 Salón",
-    "worker_2": "NerdMiner v2 Oficina",
-}
-```
-*Para los NerdMiners antiguos que todos reportan como `worker` en la API, el bot asigna IDs incrementales (`worker_1`, `worker_2`, ...). Ejecuta el bot una vez y revisa el log para descubrir los IDs asignados.*
 
 ## Alertas
 
