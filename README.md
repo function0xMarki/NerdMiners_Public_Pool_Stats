@@ -124,16 +124,19 @@ If you're missing any program like Python or pip, it will notify you and show yo
 
 ### 3. Customize Worker Names *(Optional)*
 
-Edit `config.py` to set custom display names for your miners.
+Edit `config.py` to configure custom names for your miners and how they will be displayed in Telegram messages.
 This way you can assign a more descriptive name to your miner related to the worker name that appears in Public-Pool.
 Keep in mind that you should assign a different name to each worker in its configuration.
 
 ```python
 NAME_SUBSTITUTIONS = {
-    "nerdoctaxe": "NerdMiner Octaxe Gamma",
-    "worker": "NerdMiner v2",
+    "nerdoctaxe_1": "NerdMiner Octaxe Gamma Home",
+    "nerdoctaxe_2": "NerdMiner Octaxe Gamma Work",
+    "worker": "NerdMiner v2 Living Room",
+    "worker_2": "NerdMiner v2 Office",
 }
 ```
+*For old NerdMiners that all report as `worker` in the API, the bot assigns incremental IDs (`worker_1`, `worker_2`, ...). Run the bot once and check the log to discover assigned IDs.*
 
 ### 4. Set Up Cron Job
 
@@ -175,20 +178,6 @@ Tunable settings are in `config.py`:
 *When the message reaches the age of `MESSAGE_EDIT_LIMIT_HOURS`, the bot deletes it and sends a new one (which is then pinned automatically).*
 
 > **Important**: Telegram imposes a **48-hour limit** for bots — messages older than 48 hours **cannot be edited or deleted** via the Bot API. The default value of **45 hours** provides a safe 3-hour margin. **Do not set this value above 45**, or the bot may be unable to delete the old message, resulting in duplicate pinned messages in the group.
-
-### Worker Name Substitutions
-
-Customize how miner names appear in Telegram messages:
-
-```python
-NAME_SUBSTITUTIONS = {
-    "nerdoctaxe_1": "NerdMiner Octaxe Gamma Home",
-    "nerdoctaxe_2": "NerdMiner Octaxe Gamma Work",
-    "worker": "NerdMiner v2 Living Room",
-    "worker_2": "NerdMiner v2 Office",
-}
-```
-*For old NerdMiners that all report as `worker` in the API, the bot assigns incremental IDs (`worker_1`, `worker_2`, ...). Run the bot once and check the log to discover assigned IDs.*
 
 ## Alerts
 
