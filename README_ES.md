@@ -11,7 +11,7 @@ Bot de Telegram que monitoriza tus NerdMiners de Bitcoin en [public-pool.io](htt
 - **Estadísticas del pool**: Hashrate total, cantidad de mineros, tu porcentaje de contribución
 - **Estadísticas de la red Bitcoin**: Altura del bloque actual, dificultad, hashrate de la red
 - **Alertas inteligentes**: Desconexión detectada, hashrate bajo *(vs media 24h)*, nuevos récords personales, mineros nuevos/desaparecidos, bloque encontrado por el pool
-- **Salón de la Fama**: Registra el top 10 de las mejores dificultades alcanzadas a lo largo de todas las sesiones
+- **TOP 3 BD**: Registra el top 10 de las mejores dificultades alcanzadas a lo largo de todas las sesiones, mostrando el top 3 en el mensaje de estadísticas
 - **Mensaje fijado auto-actualizado**: Un único mensaje de estadísticas se mantiene fijado y actualizado en el grupo; las notificaciones de fijado se eliminan automáticamente para mantener el chat limpio
 - **Identificación de workers**: Gestiona automáticamente múltiples mineros con el mismo nombre en la API *(ej: los NerdMiners antiguos que todos reportan como "worker" sin posibilidad de personalizarse)*
 - **Almacenamiento SQLite**: Historial eficiente de 90 días para promedios de hashrate y seguimiento de sesiones *(modo WAL para fiabilidad)*
@@ -129,13 +129,9 @@ De esta manera puedes asignar un nombre más descriptivo a tu minero relacionado
 Ten en cuenta que deberás asignar un nombre diferente a cada worker en la configuración del mismo.
 
 ```python
-NAME_SUBSTITUTIONS = {
-    "nerdoctaxe_1": "NerdMiner Octaxe Gamma Casa",
-    "nerdoctaxe_2": "NerdMiner Octaxe Gamma Trabajo",
-    "worker": "NerdMiner v2 Salón",
-    "worker_2": "NerdMiner v2 Oficina",
-}
+NAME_SUBSTITUTIONS = '{"nerdoctaxe_1": "NerdMiner Octaxe Gamma Casa", "nerdoctaxe_2": "NerdMiner Octaxe Gamma Trabajo", "worker": "NerdMiner v2 Salón", "worker_2": "NerdMiner v2 Oficina"}'
 ```
+> **Importante**: El valor debe ser una **cadena JSON en una sola línea** — no la dividas en varias líneas. Este formato permite que el sistema de auto-actualización preserve tus nombres durante las actualizaciones.
 *Para los NerdMiners antiguos que todos reportan como `worker` en la API, el bot asigna IDs incrementales (`worker_1`, `worker_2`, ...). Ejecuta el bot una vez y revisa el log para descubrir los IDs asignados.*
 
 ### 4. Configurar Tarea Cron
@@ -171,7 +167,7 @@ Los ajustes configurables están en `config.py`:
 | `MESSAGE_EDIT_LIMIT_HOURS` | Horas antes de recrear el mensaje de estadísticas *(ver nota abajo)* | `45` |
 | `DATA_RETENTION_DAYS` | Días de retención del historial de hashrate en la base de datos | `90` |
 | `BACKUP_RETENTION_DAYS` | Días de retención de las copias de seguridad | `30` |
-| `NAME_SUBSTITUTIONS` | Nombres personalizados para los mineros | `{}` |
+| `NAME_SUBSTITUTIONS` | Nombres personalizados para los mineros *(cadena JSON en una sola línea)* | `'{}'` |
 | `LOG_LEVEL` | Nivel de detalle del log: `DEBUG`, `INFO`, `WARNING`, `ERROR` | `WARNING` |
 
 ### SOBRE `MESSAGE_EDIT_LIMIT_HOURS`
@@ -195,14 +191,15 @@ Los ajustes configurables están en `config.py`:
 
 ## Cómo Funciona
 
-1. **Inicialización de BD**: Crea las tablas SQLite si no existen
+1. **Auto-actualización**: Comprueba el repositorio remoto para nuevas versiones y las aplica automáticamente, preservando tu configuración
+2. **Inicialización de BD**: Crea las tablas SQLite si no existen
 2. **Backup**: Crea una copia con marca de tiempo de la base de datos *(se omite si ya existe una con menos de 24h)*
-3. **Obtener datos**: Consulta la API de public-pool.io para tus mineros, estadísticas del pool y de la red
-4. **Identificar workers**: Mapea los workers de la API a IDs internos estables *(gestiona nombres duplicados)*
-5. **Comprobar alertas**: Compara el estado actual con el guardado, detecta cambios, registra sesiones
-6. **Enviar alertas**: Las alertas activadas se envían como mensajes individuales al grupo
-7. **Actualizar estadísticas**: Construye el mensaje de estadísticas, edita el mensaje fijado existente *(o crea uno nuevo si es demasiado antiguo)*
-8. **Purga**: Elimina muestras de hashrate más antiguas que `DATA_RETENTION_DAYS`
+4. **Obtener datos**: Consulta la API de public-pool.io para tus mineros, estadísticas del pool y de la red
+5. **Identificar workers**: Mapea los workers de la API a IDs internos estables *(gestiona nombres duplicados)*
+6. **Comprobar alertas**: Compara el estado actual con el guardado, detecta cambios, registra sesiones
+7. **Enviar alertas**: Las alertas activadas se envían como mensajes individuales al grupo
+8. **Actualizar estadísticas**: Construye el mensaje de estadísticas, edita el mensaje fijado existente *(o crea uno nuevo si es demasiado antiguo)*
+9. **Purga**: Elimina muestras de hashrate más antiguas que `DATA_RETENTION_DAYS`
 
 ## Estructura del Proyecto
 
@@ -214,12 +211,13 @@ NerdMiners_Public_Pool_Stats/
 ├── database.py                 # Capa de persistencia SQLite (modo WAL, claves foráneas)
 ├── NerdMiners_Bot.py           # Script principal del bot (punto de entrada)
 ├── First_Setup.sh              # Script de configuración inicial
+├── Update.sh                   # Script de auto-actualización (llamado por NerdMiners_Bot.py en cada ejecución)
 ├── requirements.txt            # Dependencias de Python
 ├── DB.db                       # Base de datos SQLite (auto-generada)
 ├── Logs/                       # Directorio de logs (auto-generado)
 │   └── NerdMiners_Public_Pool_Stats_Bot.log
 └── Backup/                     # Copias de seguridad de la BD (auto-generadas, retención 30 días)
-    └── NerdMiners_Public_Pool_Stats_DDMMYYYY_HHMMSS.db
+    └── NerdMiners_Public_Pool_Stats_MMDDYYYY_HHMMSS.db
 ```
 
 ## Endpoints de la API
