@@ -11,7 +11,7 @@ Telegram bot that monitors your Bitcoin NerdMiners on [public-pool.io](https://w
 - **Pool statistics**: Total hashrate, miner count, your contribution percentage
 - **Bitcoin network stats**: Current block height, difficulty, network hashrate
 - **Smart alerts**: Disconnection detected, low hashrate *(vs 24h average)*, new personal records, new/disappeared miners, pool block found
-- **Hall of Fame**: Tracks the top 10 best difficulties ever achieved across all sessions
+- **TOP 3 BD**: Tracks the top 10 best difficulties ever achieved across all sessions, displaying the top 3 in the stats message
 - **Auto-pinned stats message**: A single stats message is kept pinned and updated in the group; pin notification messages are automatically deleted to keep the chat clean
 - **Worker identification**: Automatically handles multiple miners with the same API name *(e.g., old NerdMiners that all report as "worker" without customization options)*
 - **SQLite storage**: Efficient 90-day rolling history for hashrate averaging and session tracking *(WAL mode for reliability)*
@@ -129,13 +129,9 @@ This way you can assign a more descriptive name to your miner related to the wor
 Keep in mind that you should assign a different name to each worker in its configuration.
 
 ```python
-NAME_SUBSTITUTIONS = {
-    "nerdoctaxe_1": "NerdMiner Octaxe Gamma Home",
-    "nerdoctaxe_2": "NerdMiner Octaxe Gamma Work",
-    "worker": "NerdMiner v2 Living Room",
-    "worker_2": "NerdMiner v2 Office",
-}
+NAME_SUBSTITUTIONS = '{"nerdoctaxe_1": "NerdMiner Octaxe Gamma Home", "nerdoctaxe_2": "NerdMiner Octaxe Gamma Work", "worker": "NerdMiner v2 Living Room", "worker_2": "NerdMiner v2 Office"}'
 ```
+> **Important**: The value must be a **single-line JSON string** — do not split it across lines. This format allows the auto-update system to preserve your names during upgrades.
 *For old NerdMiners that all report as `worker` in the API, the bot assigns incremental IDs (`worker_1`, `worker_2`, ...). Run the bot once and check the log to discover assigned IDs.*
 
 ### 4. Set Up Cron Job
@@ -170,7 +166,7 @@ Tunable settings are in `config.py`:
 | `MESSAGE_EDIT_LIMIT_HOURS` | Hours before the stats message is recreated *(see note below)* | `45` |
 | `DATA_RETENTION_DAYS` | Days to keep hashrate history in the database | `90` |
 | `BACKUP_RETENTION_DAYS` | Days to keep database backups | `30` |
-| `NAME_SUBSTITUTIONS` | Custom display names for miners | `{}` |
+| `NAME_SUBSTITUTIONS` | Custom display names for miners *(single-line JSON string)* | `'{}'` |
 | `LOG_LEVEL` | Log verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR` | `WARNING` |
 
 ### ABOUT `MESSAGE_EDIT_LIMIT_HOURS`
@@ -194,14 +190,15 @@ Tunable settings are in `config.py`:
 
 ## How It Works
 
-1. **Database init**: Creates SQLite tables if they don't exist
+1. **Auto-update**: Checks the remote repository for new versions and applies them automatically, preserving your configuration
+2. **Database init**: Creates SQLite tables if they don't exist
 2. **Backup**: Creates a timestamped copy of the database *(skipped if one less than 24h old exists)*
-3. **Fetch data**: Queries the public-pool.io API for your miners, pool stats, and network stats
-4. **Identify workers**: Maps API workers to stable internal IDs *(handles duplicate names)*
-5. **Check alerts**: Compares current state against saved state, detects changes, records sessions
-6. **Send alerts**: Any triggered alerts are sent as individual messages to the group
-7. **Update stats**: Builds the stats message, edits the existing pinned message *(or creates a new one if too old)*
-8. **Purge**: Deletes hashrate samples older than `DATA_RETENTION_DAYS`
+4. **Fetch data**: Queries the public-pool.io API for your miners, pool stats, and network stats
+5. **Identify workers**: Maps API workers to stable internal IDs *(handles duplicate names)*
+6. **Check alerts**: Compares current state against saved state, detects changes, records sessions
+7. **Send alerts**: Any triggered alerts are sent as individual messages to the group
+8. **Update stats**: Builds the stats message, edits the existing pinned message *(or creates a new one if too old)*
+9. **Purge**: Deletes hashrate samples older than `DATA_RETENTION_DAYS`
 
 ## Project Structure
 
@@ -213,12 +210,13 @@ NerdMiners_Public_Pool_Stats/
 ├── database.py                 # SQLite persistence layer (WAL mode, foreign keys)
 ├── NerdMiners_Bot.py           # Main bot script (entry point)
 ├── First_Setup.sh              # First-time setup script
+├── Update.sh                   # Auto-update script (called by NerdMiners_Bot.py on each run)
 ├── requirements.txt            # Python dependencies
 ├── DB.db                       # SQLite database (auto-generated)
 ├── Logs/                       # Log files directory (auto-generated)
 │   └── NerdMiners_Public_Pool_Stats_Bot.log
 └── Backup/                     # Database backups (auto-generated, 30-day retention)
-    └── NerdMiners_Public_Pool_Stats_DDMMYYYY_HHMMSS.db
+    └── NerdMiners_Public_Pool_Stats_MMDDYYYY_HHMMSS.db
 ```
 
 ## API Endpoints
