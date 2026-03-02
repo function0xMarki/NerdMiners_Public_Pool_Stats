@@ -164,6 +164,8 @@ Los ajustes configurables están en `config.py`:
 | `API_BASE_URL` | URL base de la API de public-pool.io | `https://public-pool.io:40557/api` |
 | `OFFLINE_TIMEOUT_MINUTES` | Minutos de inactividad para considerar un minero offline | `5` |
 | `HASHRATE_DROP_PERCENT` | Porcentaje de caída del hashrate vs media 24h para activar alerta | `30` |
+| `HASHRATE_ALERT_STRIKES` | Ejecuciones consecutivas con caída de hashrate necesarias antes de alertar. Con cron cada 30 min, `2` = la caída debe persistir ≥30 min | `2` |
+| `HASHRATE_ALERT_COOLDOWN_HOURS` | Horas antes de reenviar una alerta LOW HASHRATE para el mismo minero. Se reinicia automáticamente cuando el hashrate se recupera | `4` |
 | `MESSAGE_EDIT_LIMIT_HOURS` | Horas antes de recrear el mensaje de estadísticas *(ver nota abajo)* | `45` |
 | `DATA_RETENTION_DAYS` | Días de retención del historial de hashrate en la base de datos | `90` |
 | `BACKUP_RETENTION_DAYS` | Días de retención de las copias de seguridad | `30` |
@@ -182,7 +184,7 @@ Los ajustes configurables están en `config.py`:
 |--------|------------|
 | DISCONNECTION DETECTED | El ID de sesión del minero cambió *(nuevo `startTime`)*. Incluye duración de la sesión anterior, tiempo estimado de inactividad y hora de reconexión |
 | MINER OFFLINE | Sin actividad durante más de `OFFLINE_TIMEOUT_MINUTES` minutos |
-| LOW HASHRATE | El hashrate actual cayó más de `HASHRATE_DROP_PERCENT`% por debajo de la media de 24 horas |
+| LOW HASHRATE | El hashrate cayó más de `HASHRATE_DROP_PERCENT`% por debajo de la media de 24h durante `HASHRATE_ALERT_STRIKES` ejecuciones consecutivas. Cooldown de `HASHRATE_ALERT_COOLDOWN_HOURS`h entre alertas; se reinicia al recuperarse |
 | NEW PERSONAL RECORD | El minero alcanzó una nueva mejor dificultad de sesión *"BD"* *(también marca récords históricos)* |
 | NEW MINER DETECTED | Apareció un minero previamente desconocido |
 | MINER DISAPPEARED | Un minero conocido ya no es visible en el pool |
@@ -193,7 +195,7 @@ Los ajustes configurables están en `config.py`:
 
 1. **Auto-actualización**: Comprueba el repositorio remoto para nuevas versiones y las aplica automáticamente, preservando tu configuración
 2. **Inicialización de BD**: Crea las tablas SQLite si no existen
-2. **Backup**: Crea una copia con marca de tiempo de la base de datos *(se omite si ya existe una con menos de 24h)*
+3. **Backup**: Crea una copia con marca de tiempo de la base de datos *(se omite si ya existe una con menos de 24h)*
 4. **Obtener datos**: Consulta la API de public-pool.io para tus mineros, estadísticas del pool y de la red
 5. **Identificar workers**: Mapea los workers de la API a IDs internos estables *(gestiona nombres duplicados)*
 6. **Comprobar alertas**: Compara el estado actual con el guardado, detecta cambios, registra sesiones
