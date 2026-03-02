@@ -71,5 +71,5 @@ NAME_SUBSTITUTIONS = '{"nerdoctaxe": "NerdMiner Octaxe Gamma", "worker": "NerdMi
 # - INFO:    Normal operations + warnings + errors
 # - WARNING: Only important events and errors (default, recommended)
 # - ERROR:   Only errors
-LOG_LEVEL = "INFO"
+LOG_LEVEL = "WARNING"
 
