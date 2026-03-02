@@ -24,6 +24,8 @@ from config import (
     API_BASE_URL,
     BACKUP_RETENTION_DAYS,
     DATA_RETENTION_DAYS,
+    HASHRATE_ALERT_COOLDOWN_HOURS,
+    HASHRATE_ALERT_STRIKES,
     HASHRATE_DROP_PERCENT,
     LOG_LEVEL,
     MESSAGE_EDIT_LIMIT_HOURS,
@@ -548,14 +550,40 @@ def check_alerts(identified_workers: dict[str, dict], pool_stats: dict | None) -
         avg_24h = db.get_avg_hashrate(internal_id, hours=24)
         if avg_24h and avg_24h > 0 and hashrate > 0:
             drop = ((avg_24h - hashrate) / avg_24h) * 100
+            strikes_key = f"low_hashrate_strikes_{internal_id}"
+            alerted_key = f"low_hashrate_alerted_at_{internal_id}"
+
             if drop >= HASHRATE_DROP_PERCENT:
-                alerts.append(
-                    f"📉 <b>LOW HASHRATE</b>\n"
-                    f"Miner: <b>{display}</b>\n"
-                    f"Current: {format_hashrate(hashrate)}\n"
-                    f"24h average: {format_hashrate(avg_24h)}\n"
-                    f"Drop: {drop:.1f}%"
-                )
+                strikes = int(db.get_state(strikes_key, "0") or "0") + 1
+                db.set_state(strikes_key, str(strikes))
+
+                if strikes >= HASHRATE_ALERT_STRIKES:
+                    can_alert = True
+                    alerted_at_str = db.get_state(alerted_key)
+                    if alerted_at_str:
+                        try:
+                            alerted_at = datetime.fromisoformat(alerted_at_str)
+                            elapsed_h = (
+                                datetime.now(timezone.utc) - alerted_at
+                            ).total_seconds() / 3600
+                            if elapsed_h < HASHRATE_ALERT_COOLDOWN_HOURS:
+                                can_alert = False
+                        except (ValueError, TypeError):
+                            pass
+
+                    if can_alert:
+                        db.set_state(alerted_key, datetime.now(timezone.utc).isoformat())
+                        alerts.append(
+                            f"📉 <b>LOW HASHRATE</b>\n"
+                            f"Miner: <b>{display}</b>\n"
+                            f"Current: {format_hashrate(hashrate)}\n"
+                            f"24h average: {format_hashrate(avg_24h)}\n"
+                            f"Drop: {drop:.1f}%"
+                        )
+            else:
+                # Hashrate recovered — reset strike counter and cooldown
+                db.set_state(strikes_key, "0")
+                db.set_state(alerted_key, "")
 
         # --- New personal best difficulty (current session) ---
         if saved_worker:
