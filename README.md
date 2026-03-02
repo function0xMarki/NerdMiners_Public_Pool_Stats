@@ -163,6 +163,8 @@ Tunable settings are in `config.py`:
 | `API_BASE_URL` | public-pool.io API base URL | `https://public-pool.io:40557/api` |
 | `OFFLINE_TIMEOUT_MINUTES` | Minutes of inactivity before a miner is considered offline | `5` |
 | `HASHRATE_DROP_PERCENT` | Hashrate drop vs 24h average to trigger alert | `30` |
+| `HASHRATE_ALERT_STRIKES` | Consecutive runs with a hashrate drop required before alerting. With a 30-min cron, `2` = drop must persist ≥30 min | `2` |
+| `HASHRATE_ALERT_COOLDOWN_HOURS` | Hours before resending a LOW HASHRATE alert for the same miner. Resets automatically when hashrate recovers | `4` |
 | `MESSAGE_EDIT_LIMIT_HOURS` | Hours before the stats message is recreated *(see note below)* | `45` |
 | `DATA_RETENTION_DAYS` | Days to keep hashrate history in the database | `90` |
 | `BACKUP_RETENTION_DAYS` | Days to keep database backups | `30` |
@@ -181,7 +183,7 @@ Tunable settings are in `config.py`:
 |-------|---------|
 | DISCONNECTION DETECTED | Miner's session ID changed *(new `startTime`)*. Includes previous session duration, estimated downtime, and reconnection time |
 | MINER OFFLINE | No activity for more than `OFFLINE_TIMEOUT_MINUTES` minutes |
-| LOW HASHRATE | Current hashrate dropped more than `HASHRATE_DROP_PERCENT`% below the 24-hour average |
+| LOW HASHRATE | Hashrate dropped more than `HASHRATE_DROP_PERCENT`% below the 24h average for `HASHRATE_ALERT_STRIKES` consecutive runs. Cooldown of `HASHRATE_ALERT_COOLDOWN_HOURS`h between alerts; resets on recovery |
 | NEW PERSONAL RECORD | Miner achieved a new session best difficulty *"BD"* *(also marks all-time records)* |
 | NEW MINER DETECTED | A previously unknown miner appeared |
 | MINER DISAPPEARED | A known miner is no longer visible in the pool |
