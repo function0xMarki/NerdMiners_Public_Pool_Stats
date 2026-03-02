@@ -57,14 +57,10 @@ BACKUP_RETENTION_DAYS = 30
 # Run the bot once and check the log to discover your workers' internal IDs.
 #
 # Example:
-#   NAME_SUBSTITUTIONS = {
-#       "nerdoctaxe": "BitAxe Ultra",
-#       "worker_1": "NerdMiner Living Room",
-#       "worker_2": "NerdMiner Office",
-#   }
+# NAME_SUBSTITUTIONS = '{"nerdoctaxe": "NerdMiner Octaxe Gamma", "worker": "NerdMiner v2"}'
 #
 # If a name is not in this dictionary, the original API name is displayed.
-NAME_SUBSTITUTIONS = {}
+NAME_SUBSTITUTIONS = '{"nerdoctaxe": "NerdMiner Octaxe Gamma", "worker": "NerdMiner v2"}'
 
 # ===========================================================================
 # LOGGING
@@ -75,5 +71,5 @@ NAME_SUBSTITUTIONS = {}
 # - INFO:    Normal operations + warnings + errors
 # - WARNING: Only important events and errors (default, recommended)
 # - ERROR:   Only errors
-LOG_LEVEL = "WARNING"
+LOG_LEVEL = "INFO"
 
