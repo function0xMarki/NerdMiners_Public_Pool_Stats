@@ -245,7 +245,7 @@ if [ "$REQUIREMENTS_CHANGED" = true ]; then
         log "Dependencies updated successfully."
     else
         log "WARNING: pip install failed."
-        send_telegram "⚠️ <b>Dependency Update Failed</b>%0A%0AThe update changed requirements.txt, but pip failed to install the new packages. The bot will continue running with the previous dependency versions.%0A%0A⚡ <b>To fix manually, connect to your server and run:</b>%0A<code>${SCRIPT_DIR}/venv/bin/pip install -r ${SCRIPT_DIR}/requirements.txt</code>%0A%0ALogs: <code>${LOG_FILE}</code>"
+        send_telegram "⚠️ <b>Dependency Update Failed</b>%0A%0AThe update changed requirements.txt, but pip failed to install the new packages.%0A The bot will continue running with the previous dependency versions.%0A%0A⚡ <b>To fix manually, connect to your server and run:</b>%0A<code>${SCRIPT_DIR}/venv/bin/pip install -r ${SCRIPT_DIR}/requirements.txt</code>%0A%0ALogs: <code>${LOG_FILE}</code>"
     fi
 fi
 
@@ -255,11 +255,11 @@ fi
 
 COMMIT_MSG=$(git -C "$SCRIPT_DIR" log -1 --pretty=format:"%h - %s" 2>/dev/null)
 
-send_telegram "🔄 <b>Bot Updated Successfully</b>%0A%0A📦 <code>${COMMIT_MSG}</code>%0A%0AThe bot has been updated. Changes will be applied on the next scheduled run."
+send_telegram "🔄 <b>Bot Updated Successfully</b>%0A%0A📦 <code>${COMMIT_MSG}</code>%0A%0AThe bot has been updated.%0A Changes will be applied on the next scheduled run."
 log "Update notification sent."
 
 if [ -n "$ADDED_VARS" ]; then
-    send_telegram "⚙️ <b>New Configuration Options</b>%0A%0AThe latest update added new settings to config.py. They are active with their default values — no action needed unless you want to customize them.%0A%0A${ADDED_VARS}%0A%0ATo change them, edit config.py on your server."
+    send_telegram "⚙️ <b>New Configuration Options</b>%0A%0AThe latest update added new settings to config.py.%0A They are active with their default values — no action needed unless you want to customize them.%0A%0A${ADDED_VARS}%0A%0ATo change them, edit config.py on your server."
     log "New variables notification sent."
 fi
 
