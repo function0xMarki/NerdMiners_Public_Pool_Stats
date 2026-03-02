@@ -23,6 +23,15 @@ OFFLINE_TIMEOUT_MINUTES = 5
 # Hashrate drop percentage (vs 24h average) to trigger a LOW HASHRATE alert
 HASHRATE_DROP_PERCENT = 30
 
+# Number of consecutive runs that must show a hashrate drop before alerting.
+# With a 30-minute cron, 2 strikes means the drop must persist at least 30 minutes.
+# Increase to require a longer sustained drop before alerting (e.g., 3 = ~60 min).
+HASHRATE_ALERT_STRIKES = 2
+
+# Hours before resending a LOW HASHRATE alert for the same miner.
+# The cooldown resets automatically when the miner's hashrate recovers.
+HASHRATE_ALERT_COOLDOWN_HOURS = 4
+
 # ===========================================================================
 # MESSAGE MANAGEMENT
 # ===========================================================================
@@ -72,4 +81,3 @@ NAME_SUBSTITUTIONS = '{"nerdoctaxe": "NerdMiner Octaxe Gamma", "worker": "NerdMi
 # - WARNING: Only important events and errors (default, recommended)
 # - ERROR:   Only errors
 LOG_LEVEL = "WARNING"
-
