@@ -786,6 +786,10 @@ def build_stats_message(
 
 def main() -> None:
     """Main entry point for the bot."""
+    # Ensure all shell scripts are executable (guards against git resetting permissions)
+    for _sh in SCRIPT_DIR.glob("*.sh"):
+        _sh.chmod(_sh.stat().st_mode | 0o111)
+
     # Run auto-update check (only if enabled in config)
     if AUTO_UPDATE:
         _update_script = SCRIPT_DIR / "Update.sh"
