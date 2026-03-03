@@ -142,8 +142,9 @@ Each execution fetches the latest data, updates the pinned stats message, sends 
 At the end of the `First_Setup.sh` configuration script, you will be shown a command that you must execute to create the cron entry in the system's crontab.
 
 > **Important — Execution frequency**:
-> - **Maximum recommended frequency: every 30 minutes** (`*/30 * * * *`).
-> - Running more frequently *(e.g., every 5 or 10 minutes)* is **not recommended** because the public-pool.io API may apply **rate limits** that could temporarily block your requests.
+> - **Recommended frequency: every 30 minutes** (`*/30 * * * *`).
+> - Running more frequently *(e.g., every 5 or 10 minutes)* is **not recommended when using public-pool.io**, as its API may apply **rate limits** that could temporarily block your requests.
+> - If you are using a **self-hosted public-pool instance**, there are no rate limits — you may run the bot as frequently as you like.
 > - Running less frequently *(e.g., every hour)* is perfectly fine and will still provide useful monitoring.
 
 ## Configuration
@@ -161,7 +162,7 @@ Tunable settings are in `config.py`:
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `AUTO_UPDATE` | Enable automatic updates from the GitHub repository. `False` disables all auto-updates; you must update manually via git | `True` |
-| `API_BASE_URL` | public-pool.io API base URL | `https://public-pool.io:40557/api` |
+| `API_BASE_URL` | API base URL. Pre-configured for **public-pool.io**. Self-hosted instances use a different URL and port *(e.g., `http://umbrel.local:3334/api`)*. See [Self-hosted public-pool](#self-hosted-public-pool) below | `https://public-pool.io:40557/api` |
 | `OFFLINE_TIMEOUT_MINUTES` | Minutes of inactivity before a miner is considered offline | `5` |
 | `HASHRATE_DROP_PERCENT` | Hashrate drop vs 24h average to trigger alert | `30` |
 | `HASHRATE_ALERT_STRIKES` | Consecutive runs with a hashrate drop required before alerting. With a 30-min cron, `2` = drop must persist ≥30 min | `2` |
@@ -232,6 +233,19 @@ Base URL: `https://public-pool.io:40557/api`
 | `/api/client/{address}` | Workers for a Bitcoin address (hashrate, best diff, sessions) |
 | `/api/pool` | Pool-wide statistics (total hashrate, miners, blocks found) |
 | `/api/network` | Bitcoin network statistics (block height, difficulty, hashrate) |
+
+## Self-hosted public-pool
+
+This bot is compatible with **self-hosted public-pool instances**. [public-pool](https://github.com/benjamin-wilson/public-pool) is the open-source software behind public-pool.io — anyone can run their own private instance, including via a one-click install on [Umbrel](https://apps.umbrel.com/app/public-pool).
+
+The bot comes pre-configured for public-pool.io. To use your own instance, change `API_BASE_URL` in `config.py` to point to your server's IP or hostname and its API port:
+
+```python
+# Self-hosted example (Umbrel, default port 3334)
+API_BASE_URL = "http://umbrel.local:3334/api"
+```
+
+The port depends on your installation — check the network settings of your public-pool instance.
 
 ## License
 
