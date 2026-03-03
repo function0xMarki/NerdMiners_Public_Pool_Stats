@@ -749,14 +749,14 @@ def build_stats_message(
             hr_line += f"\n          └ <i>24h avg: {format_hashrate(avg_hr)}</i>"
 
         diff_line = f"   🎯 <b>Best Difficulty</b>: {format_difficulty(all_time_best)}"
-        diff_line += f"\n          └ <i>Sessión: {format_difficulty(session_best)}</i>"
+        diff_line += f"\n          └ <i>Current session: {format_difficulty(session_best)}</i>"
 
         lines += [
             f"<b>━━━ {display} ━━━</b>",
             f"   {status}",
             hr_line,
             diff_line,
-            f"   ⏱️ <b>Session Uptime</b>: {uptime} (session)",
+            f"   ⏱️ <b>Current Session Uptime</b>: {uptime}",
             "",
         ]
 
