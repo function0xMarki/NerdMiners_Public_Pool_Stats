@@ -161,6 +161,7 @@ Los ajustes configurables están en `config.py`:
 
 | Ajuste | Descripción | Por defecto |
 |--------|-------------|-------------|
+| `AUTO_UPDATE` | Activa las actualizaciones automáticas desde el repositorio de GitHub. `False` desactiva todas las actualizaciones automáticas; deberás actualizar manualmente con git | `True` |
 | `API_BASE_URL` | URL base de la API de public-pool.io | `https://public-pool.io:40557/api` |
 | `OFFLINE_TIMEOUT_MINUTES` | Minutos de inactividad para considerar un minero offline | `5` |
 | `HASHRATE_DROP_PERCENT` | Porcentaje de caída del hashrate vs media 24h para activar alerta | `30` |
@@ -186,7 +187,7 @@ Los ajustes configurables están en `config.py`:
 | DISCONNECTION DETECTED | El ID de sesión del minero cambió *(nuevo `startTime`)*. Incluye duración de la sesión anterior, tiempo estimado de inactividad y hora de reconexión |
 | MINER OFFLINE | Sin actividad durante más de `OFFLINE_TIMEOUT_MINUTES` minutos |
 | LOW HASHRATE | El hashrate cayó más de `HASHRATE_DROP_PERCENT`% por debajo de la media de 24h durante `HASHRATE_ALERT_STRIKES` ejecuciones consecutivas. Cooldown de `HASHRATE_ALERT_COOLDOWN_HOURS`h entre alertas; se reinicia al recuperarse |
-| NEW PERSONAL RECORD | El minero alcanzó una nueva mejor dificultad de sesión *"BD"* *(también marca récords históricos)* |
+| NEW PERSONAL RECORD | El minero superó su **mejor dificultad histórica** *(por defecto)*. Establece `NOTIFY_SESSION_BD_RECORD = True` para alertar también en récords de sesión que no superen el histórico |
 | NEW MINER DETECTED | Apareció un minero previamente desconocido |
 | MINER DISAPPEARED | Un minero conocido ya no es visible en el pool |
 | YOUR MINER FOUND A BLOCK | Uno de TUS mineros encontró un bloque de Bitcoin *(identificado por tu BTC_ADDRESS)* |
@@ -194,7 +195,7 @@ Los ajustes configurables están en `config.py`:
 
 ## Cómo Funciona
 
-1. **Auto-actualización**: Comprueba el repositorio remoto para nuevas versiones y las aplica automáticamente, preservando tu configuración
+1. **Auto-actualización**: Comprueba el repositorio remoto para nuevas versiones y las aplica automáticamente, preservando tu configuración; envía una notificación a Telegram listando todos los commits aplicados desde la última actualización
 2. **Inicialización de BD**: Crea las tablas SQLite si no existen
 3. **Backup**: Crea una copia con marca de tiempo de la base de datos *(se omite si ya existe una con menos de 24h)*
 4. **Obtener datos**: Consulta la API de public-pool.io para tus mineros, estadísticas del pool y de la red
