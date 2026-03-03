@@ -143,8 +143,9 @@ Al final del script de configuración `First_Setup.sh`, se te mostrará un coman
 
 
 > **Importante — Frecuencia de ejecución**:
-> - **Frecuencia máxima recomendada: cada 30 minutos** (`*/30 * * * *`).
-> - Ejecutar con mayor frecuencia *(ej: cada 5 o 10 minutos)* **no se recomienda** porque la API de public-pool.io podría aplicar límites de tasa de consulta *(rate limits)* que bloquearían temporalmente tus peticiones.
+> - **Frecuencia recomendada: cada 30 minutos** (`*/30 * * * *`).
+> - Ejecutar con mayor frecuencia *(ej: cada 5 o 10 minutos)* **no se recomienda si usas public-pool.io**, ya que su API podría aplicar límites de tasa de consulta *(rate limits)* que bloquearían temporalmente tus peticiones.
+> - Si usas una **instancia auto-alojada de public-pool**, no existen rate limits — puedes ejecutar el bot con la frecuencia que desees.
 > - Ejecutar con menor frecuencia *(ej: cada hora)* es perfectamente válido y seguirá proporcionando una monitorización útil.
 
 ## Configuración
@@ -162,7 +163,7 @@ Los ajustes configurables están en `config.py`:
 | Ajuste | Descripción | Por defecto |
 |--------|-------------|-------------|
 | `AUTO_UPDATE` | Activa las actualizaciones automáticas desde el repositorio de GitHub. `False` desactiva todas las actualizaciones automáticas; deberás actualizar manualmente con git | `True` |
-| `API_BASE_URL` | URL base de la API de public-pool.io | `https://public-pool.io:40557/api` |
+| `API_BASE_URL` | URL base de la API. Preconfigurado para **public-pool.io**. Las instancias auto-alojadas usan una URL y puerto propios *(ej: `http://umbrel.local:3334/api`)*. Ver [public-pool auto-alojado](#public-pool-auto-alojado) más abajo | `https://public-pool.io:40557/api` |
 | `OFFLINE_TIMEOUT_MINUTES` | Minutos de inactividad para considerar un minero offline | `5` |
 | `HASHRATE_DROP_PERCENT` | Porcentaje de caída del hashrate vs media 24h para activar alerta | `30` |
 | `HASHRATE_ALERT_STRIKES` | Ejecuciones consecutivas con caída de hashrate necesarias antes de alertar. Con cron cada 30 min, `2` = la caída debe persistir ≥30 min | `2` |
@@ -233,6 +234,19 @@ URL base: `https://public-pool.io:40557/api`
 | `/api/client/{dirección}` | Workers de una dirección Bitcoin (hashrate, mejor dificultad, sesiones) |
 | `/api/pool` | Estadísticas globales del pool (hashrate total, mineros, bloques encontrados) |
 | `/api/network` | Estadísticas de la red Bitcoin (altura de bloque, dificultad, hashrate) |
+
+## public-pool auto-alojado
+
+Este bot es compatible con **instancias de public-pool auto-alojadas**. [public-pool](https://github.com/benjamin-wilson/public-pool) es el software de código abierto que hay detrás de public-pool.io — cualquier usuario puede ejecutar su propia instancia privada, incluso con una instalación en un clic desde [Umbrel](https://apps.umbrel.com/app/public-pool).
+
+El bot viene preconfigurado para public-pool.io. Para usar tu propia instancia, cambia `API_BASE_URL` en `config.py` apuntando a la IP o dominio de tu servidor y su puerto de API:
+
+```python
+# Ejemplo auto-alojado (Umbrel, puerto por defecto 3334)
+API_BASE_URL = "http://umbrel.local:3334/api"
+```
+
+El puerto depende de tu instalación — consulta la configuración de red de tu instancia de public-pool.
 
 ## Licencia
 
