@@ -253,9 +253,26 @@ fi
 # Notifications
 # ---------------------------------------------------------------------------
 
-COMMIT_MSG=$(git -C "$SCRIPT_DIR" log -1 --pretty=format:"%h - %s" 2>/dev/null)
+# Count total new commits applied
+TOTAL_COMMITS=$(git -C "$SCRIPT_DIR" log "$LOCAL_HASH".."$REMOTE_HASH" --oneline 2>/dev/null | wc -l | tr -d ' ')
 
-send_telegram "🔄 <b>Bot Updated Successfully</b>%0A%0A📦 <code>${COMMIT_MSG}</code>%0A%0AThe bot has been updated.%0AChanges will be applied on the next scheduled run."
+# Build commit list (up to 10, newest first)
+COMMIT_LINES=""
+while IFS= read -r LINE; do
+    COMMIT_LINES="${COMMIT_LINES}  • <code>${LINE}</code>%0A"
+done < <(git -C "$SCRIPT_DIR" log "$LOCAL_HASH".."$REMOTE_HASH" --pretty=format:"%h - %s" 2>/dev/null | head -10)
+
+# Append overflow note if there are more than 10 commits
+EXTRA_NOTE=""
+if [ "$TOTAL_COMMITS" -gt 10 ]; then
+    REMAINING=$((TOTAL_COMMITS - 10))
+    EXTRA_NOTE="  <i>...and ${REMAINING} more commit(s)</i>%0A"
+fi
+
+# Singular/plural
+[ "$TOTAL_COMMITS" -eq 1 ] && COMMIT_WORD="commit" || COMMIT_WORD="commits"
+
+send_telegram "🔄 <b>Bot Updated Successfully</b>%0A%0A📦 <b>${TOTAL_COMMITS} ${COMMIT_WORD} applied:</b>%0A${COMMIT_LINES}${EXTRA_NOTE}%0AChanges will be applied on the next scheduled run."
 log "Update notification sent."
 
 if [ -n "$ADDED_VARS" ]; then
