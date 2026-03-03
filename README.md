@@ -3,7 +3,7 @@
 - 🇺🇸 [English](https://github.com/function0xMarki/NerdMiners_Public_Pool_Stats/blob/main/README.md) | 🇪🇸 [Español](https://github.com/function0xMarki/NerdMiners_Public_Pool_Stats/blob/main/README_ES.md)
 ---
 
-Telegram bot that monitors your Bitcoin NerdMiners on [public-pool.io](https://web.public-pool.io) and sends statistics and smart alerts to a Telegram group.
+Telegram bot that monitors your Bitcoin NerdMiners on Public-Pool and sends statistics and smart alerts to a Telegram group.
 
 ## Features
 
