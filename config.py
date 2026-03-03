@@ -32,6 +32,11 @@ HASHRATE_ALERT_STRIKES = 2
 # The cooldown resets automatically when the miner's hashrate recovers.
 HASHRATE_ALERT_COOLDOWN_HOURS = 4
 
+# Whether to notify on every new session best difficulty record.
+# False (default): only alert when a miner beats their all-time best difficulty.
+# True:            alert on any new session best, even if it doesn't beat the all-time record.
+NOTIFY_SESSION_BD_RECORD = False
+
 # ===========================================================================
 # MESSAGE MANAGEMENT
 # ===========================================================================

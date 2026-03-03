@@ -30,6 +30,7 @@ from config import (
     LOG_LEVEL,
     MESSAGE_EDIT_LIMIT_HOURS,
     NAME_SUBSTITUTIONS as _RAW_NAME_SUBSTITUTIONS,
+    NOTIFY_SESSION_BD_RECORD,
     OFFLINE_TIMEOUT_MINUTES,
 )
 
@@ -591,17 +592,19 @@ def check_alerts(identified_workers: dict[str, dict], pool_stats: dict | None) -
             if w_best_diff > saved_best and saved_best > 0:
                 all_time = db.get_all_time_best(internal_id)
                 is_all_time = w_best_diff > all_time
-                msg = (
-                    f"🌟 <b>NEW PERSONAL RECORD!</b>\n"
-                    f"Miner: <b>{display}</b>\n"
-                    f"Session Best: {format_difficulty(w_best_diff)}\n"
-                    f"Previous: {format_difficulty(saved_best)}"
-                )
-                if is_all_time:
-                    msg += "\n🏆 <b>New All-Time Best!</b>"
-                alerts.append(msg)
 
-                # Update TOP 3 BD
+                if is_all_time or NOTIFY_SESSION_BD_RECORD:
+                    msg = (
+                        f"🌟 <b>NEW PERSONAL RECORD!</b>\n"
+                        f"Miner: <b>{display}</b>\n"
+                        f"Session Best Difficylty: {format_difficulty(w_best_diff)}\n"
+                        f"Previous: {format_difficulty(saved_best)}"
+                    )
+                    if is_all_time:
+                        msg += "\n🏆 <b>New All-Time Best!</b>"
+                    alerts.append(msg)
+
+                # Update TOP 3 BD (always, regardless of notification setting)
                 db.update_hall_of_fame(internal_id, w_best_diff, session_id)
 
     # --- Pool block found ---
@@ -686,16 +689,13 @@ def build_stats_message(
     if global_best > 0:
         best_info = format_difficulty(global_best)
         if global_best_worker:
-            best_info += f" ({global_best_worker}"
-            if global_best_date:
-                best_info += f", {global_best_date}"
-            best_info += ")"
+            best_info += f"\n          └ <i>{global_best_worker}</i>"
         lines.append(f"   🏆 <b>All-Time Best Diff:</b> {best_info}")
 
     lines.append(f"   👷 <b>Workers:</b> {workers_count}")
     lines.append(f"   ⚡ <b>Total Hashrate:</b> {format_hashrate(my_total_hashrate)}")
     if total_avg > 0:
-        lines.append(f"          | <i>24h Avg Hashrate: {format_hashrate(total_avg)}</i>")
+        lines.append(f"          └ <i>24h Avg Hashrate: {format_hashrate(total_avg)}</i>")
 
     # Pool stats
     if pool_stats:
