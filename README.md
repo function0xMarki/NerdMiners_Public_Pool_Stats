@@ -165,6 +165,7 @@ Tunable settings are in `config.py`:
 | `HASHRATE_DROP_PERCENT` | Hashrate drop vs 24h average to trigger alert | `30` |
 | `HASHRATE_ALERT_STRIKES` | Consecutive runs with a hashrate drop required before alerting. With a 30-min cron, `2` = drop must persist ≥30 min | `2` |
 | `HASHRATE_ALERT_COOLDOWN_HOURS` | Hours before resending a LOW HASHRATE alert for the same miner. Resets automatically when hashrate recovers | `4` |
+| `NOTIFY_SESSION_BD_RECORD` | `False`: alert only when a miner beats their **all-time** best difficulty. `True`: alert on every new session best, even if it doesn't beat the all-time record | `False` |
 | `MESSAGE_EDIT_LIMIT_HOURS` | Hours before the stats message is recreated *(see note below)* | `45` |
 | `DATA_RETENTION_DAYS` | Days to keep hashrate history in the database | `90` |
 | `BACKUP_RETENTION_DAYS` | Days to keep database backups | `30` |

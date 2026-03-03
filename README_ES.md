@@ -166,6 +166,7 @@ Los ajustes configurables están en `config.py`:
 | `HASHRATE_DROP_PERCENT` | Porcentaje de caída del hashrate vs media 24h para activar alerta | `30` |
 | `HASHRATE_ALERT_STRIKES` | Ejecuciones consecutivas con caída de hashrate necesarias antes de alertar. Con cron cada 30 min, `2` = la caída debe persistir ≥30 min | `2` |
 | `HASHRATE_ALERT_COOLDOWN_HOURS` | Horas antes de reenviar una alerta LOW HASHRATE para el mismo minero. Se reinicia automáticamente cuando el hashrate se recupera | `4` |
+| `NOTIFY_SESSION_BD_RECORD` | `False`: solo avisa cuando un minero supera su **mejor dificultad histórica**. `True`: avisa en cada nuevo récord de sesión, aunque no supere el récord histórico | `False` |
 | `MESSAGE_EDIT_LIMIT_HOURS` | Horas antes de recrear el mensaje de estadísticas *(ver nota abajo)* | `45` |
 | `DATA_RETENTION_DAYS` | Días de retención del historial de hashrate en la base de datos | `90` |
 | `BACKUP_RETENTION_DAYS` | Días de retención de las copias de seguridad | `30` |
