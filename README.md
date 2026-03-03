@@ -22,7 +22,7 @@ Telegram bot that monitors your Bitcoin NerdMiners on Public-Pool and sends stat
 - Python 3.10 or higher
 - pip *(Python package manager)*
 - A Telegram account
-- A Bitcoin address mining on [public-pool.io](https://public-pool.io)
+- A Bitcoin address mining on [public-pool.io](https://public-pool.io) or auto-hosted Public-Pool
 
 ## Telegram Bot Setup
 
