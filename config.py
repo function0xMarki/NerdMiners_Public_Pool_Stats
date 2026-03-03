@@ -83,7 +83,7 @@ BACKUP_RETENTION_DAYS = 30
 # NAME_SUBSTITUTIONS = '{"nerdoctaxe": "NerdMiner Octaxe Gamma", "worker": "NerdMiner v2"}'
 #
 # If a name is not in this dictionary, the original API name is displayed.
-NAME_SUBSTITUTIONS = '{"nerdoctaxe": "NerdMiner Octaxe Gamma", "worker": "NerdMiner v2"}'
+NAME_SUBSTITUTIONS = '{}'
 
 # ===========================================================================
 # LOGGING
