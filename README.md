@@ -160,6 +160,7 @@ Tunable settings are in `config.py`:
 
 | Setting | Description | Default |
 |---------|-------------|---------|
+| `AUTO_UPDATE` | Enable automatic updates from the GitHub repository. `False` disables all auto-updates; you must update manually via git | `True` |
 | `API_BASE_URL` | public-pool.io API base URL | `https://public-pool.io:40557/api` |
 | `OFFLINE_TIMEOUT_MINUTES` | Minutes of inactivity before a miner is considered offline | `5` |
 | `HASHRATE_DROP_PERCENT` | Hashrate drop vs 24h average to trigger alert | `30` |
@@ -185,7 +186,7 @@ Tunable settings are in `config.py`:
 | DISCONNECTION DETECTED | Miner's session ID changed *(new `startTime`)*. Includes previous session duration, estimated downtime, and reconnection time |
 | MINER OFFLINE | No activity for more than `OFFLINE_TIMEOUT_MINUTES` minutes |
 | LOW HASHRATE | Hashrate dropped more than `HASHRATE_DROP_PERCENT`% below the 24h average for `HASHRATE_ALERT_STRIKES` consecutive runs. Cooldown of `HASHRATE_ALERT_COOLDOWN_HOURS`h between alerts; resets on recovery |
-| NEW PERSONAL RECORD | Miner achieved a new session best difficulty *"BD"* *(also marks all-time records)* |
+| NEW PERSONAL RECORD | Miner beat their **all-time** best difficulty *(default)*. Set `NOTIFY_SESSION_BD_RECORD = True` to also alert on session bests that don't beat the all-time record |
 | NEW MINER DETECTED | A previously unknown miner appeared |
 | MINER DISAPPEARED | A known miner is no longer visible in the pool |
 | YOUR MINER FOUND A BLOCK | One of YOUR miners found a Bitcoin block *(matched by your BTC_ADDRESS)* |
@@ -193,9 +194,9 @@ Tunable settings are in `config.py`:
 
 ## How It Works
 
-1. **Auto-update**: Checks the remote repository for new versions and applies them automatically, preserving your configuration
+1. **Auto-update**: Checks the remote repository for new versions and applies them automatically, preserving your configuration; sends a Telegram notification listing all commits applied since the last update
 2. **Database init**: Creates SQLite tables if they don't exist
-2. **Backup**: Creates a timestamped copy of the database *(skipped if one less than 24h old exists)*
+3. **Backup**: Creates a timestamped copy of the database *(skipped if one less than 24h old exists)*
 4. **Fetch data**: Queries the public-pool.io API for your miners, pool stats, and network stats
 5. **Identify workers**: Maps API workers to stable internal IDs *(handles duplicate names)*
 6. **Check alerts**: Compares current state against saved state, detects changes, records sessions
