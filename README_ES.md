@@ -17,6 +17,10 @@ Bot de Telegram que monitoriza tus NerdMiners de Bitcoin en Public-Pool y envía
 - **Almacenamiento SQLite**: Historial eficiente de 90 días para promedios de hashrate y seguimiento de sesiones *(modo WAL para fiabilidad)*
 - **Backups automáticos**: Copias de seguridad cada 24h de la base de datos con retención de 30 días.
 
+<p align="center">
+  <img width="251" height="460" alt="demo" src="https://github.com/user-attachments/assets/0e418066-41a3-420a-9a9b-d088cfc043d8" />
+</p>
+
 ## Requisitos previos
 
 - Python 3.10 o superior
