@@ -7,6 +7,15 @@ not here. See .env.example for the template.
 """
 
 # ===========================================================================
+# AUTO-UPDATE
+# ===========================================================================
+
+# Enable or disable automatic updates from the GitHub repository.
+# True (default): the bot checks for updates on every run and applies them automatically.
+# False:          disables all automatic updates; you must update manually via git.
+AUTO_UPDATE = True
+
+# ===========================================================================
 # API
 # ===========================================================================
 
