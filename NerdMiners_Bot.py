@@ -22,6 +22,7 @@ from dotenv import load_dotenv
 import database as db
 from config import (
     API_BASE_URL,
+    AUTO_UPDATE,
     BACKUP_RETENTION_DAYS,
     DATA_RETENTION_DAYS,
     HASHRATE_ALERT_COOLDOWN_HOURS,
@@ -785,18 +786,19 @@ def build_stats_message(
 
 def main() -> None:
     """Main entry point for the bot."""
-    # Run auto-update check
-    _update_script = SCRIPT_DIR / "Update.sh"
-    if _update_script.is_file():
-        try:
-            subprocess.run(
-                [str(_update_script)],
-                cwd=str(SCRIPT_DIR),
-                timeout=60,
-                capture_output=True,
-            )
-        except Exception:
-            pass  # Update failure should never prevent the bot from running
+    # Run auto-update check (only if enabled in config)
+    if AUTO_UPDATE:
+        _update_script = SCRIPT_DIR / "Update.sh"
+        if _update_script.is_file():
+            try:
+                subprocess.run(
+                    [str(_update_script)],
+                    cwd=str(SCRIPT_DIR),
+                    timeout=60,
+                    capture_output=True,
+                )
+            except Exception:
+                pass  # Update failure should never prevent the bot from running
 
     # Validate configuration
     if not BOT_TOKEN:
