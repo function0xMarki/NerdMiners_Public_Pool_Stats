@@ -95,5 +95,3 @@ NAME_SUBSTITUTIONS = '{}'
 # - WARNING: Only important events and errors (default, recommended)
 # - ERROR:   Only errors
 LOG_LEVEL = "WARNING"
-
-TEST_NEW_VAR_FINAL = 999
