@@ -327,6 +327,7 @@ def fetch_api_data(url: str) -> dict | None:
     try:
         resp = requests.get(url, timeout=15)
         resp.raise_for_status()
+        logger.debug("API fetch OK: %s", url)
         return resp.json()
     except (requests.RequestException, ValueError) as e:
         logger.error("API request failed (%s): %s", url, e)
@@ -367,6 +368,7 @@ def backup_database() -> None:
         if f.suffix == ".db" and f.name.startswith("NerdMiners_Public_Pool_Stats_"):
             try:
                 if f.stat().st_mtime > cutoff_recent:
+                    logger.debug("Backup skipped: recent backup exists (%s)", f.name)
                     return
             except OSError:
                 pass
@@ -377,6 +379,7 @@ def backup_database() -> None:
 
     try:
         shutil.copy2(str(db_path), str(backup_path))
+        logger.info("Database backup created: %s", backup_name)
     except OSError as e:
         logger.error("Failed to create DB backup: %s", e)
         return
@@ -388,6 +391,7 @@ def backup_database() -> None:
             try:
                 if f.stat().st_mtime < cutoff:
                     f.unlink()
+                    logger.debug("Purged old backup: %s", f.name)
             except OSError:
                 pass
 
@@ -415,6 +419,7 @@ def identify_workers(api_workers: list[dict]) -> dict[str, dict]:
         )
         claimed_ids.add(internal_id)
         result[internal_id] = w
+        logger.debug("Worker resolved: '%s' → internal_id='%s'", api_name, internal_id)
     return result
 
 
@@ -558,6 +563,10 @@ def check_alerts(identified_workers: dict[str, dict], pool_stats: dict | None) -
             if drop >= HASHRATE_DROP_PERCENT:
                 strikes = int(db.get_state(strikes_key, "0") or "0") + 1
                 db.set_state(strikes_key, str(strikes))
+                logger.debug(
+                    "Low hashrate strike %d/%d for %s (drop=%.1f%%)",
+                    strikes, HASHRATE_ALERT_STRIKES, internal_id, drop,
+                )
 
                 if strikes >= HASHRATE_ALERT_STRIKES:
                     can_alert = True
@@ -570,6 +579,10 @@ def check_alerts(identified_workers: dict[str, dict], pool_stats: dict | None) -
                             ).total_seconds() / 3600
                             if elapsed_h < HASHRATE_ALERT_COOLDOWN_HOURS:
                                 can_alert = False
+                                logger.debug(
+                                    "Low hashrate alert suppressed for %s: cooldown active (%.1fh remaining)",
+                                    internal_id, HASHRATE_ALERT_COOLDOWN_HOURS - elapsed_h,
+                                )
                         except (ValueError, TypeError):
                             pass
 
@@ -804,6 +817,8 @@ def main() -> None:
             except Exception:
                 pass  # Update failure should never prevent the bot from running
 
+    logger.info("=== Bot run started ===")
+
     # Validate configuration
     if not BOT_TOKEN:
         logger.error("BOT_TOKEN not configured in .env")
@@ -828,16 +843,28 @@ def main() -> None:
         return
 
     pool_stats = fetch_pool_stats()
+    if not pool_stats:
+        logger.warning("Pool stats unavailable, some data may be missing")
+
     network_stats = fetch_network_stats()
+    if not network_stats:
+        logger.warning("Network stats unavailable, some data may be missing")
 
     # Identify workers (handle duplicate names)
     api_workers = pool_data.get("workers") or []
     identified = identify_workers(api_workers)
 
+    if identified:
+        logger.info("Workers found: %d (%s)", len(identified), ", ".join(identified.keys()))
+    else:
+        logger.warning("No workers found for configured BTC address")
+
     # Check alerts and update state
     alerts = check_alerts(identified, pool_stats)
 
     # Send alerts
+    if not alerts:
+        logger.info("No alerts this run")
     for alert in alerts:
         result = send_message(alert)
         if result:
@@ -867,7 +894,9 @@ def main() -> None:
     if message_id and not message_too_old:
         # Try to edit existing message
         result = edit_message(message_id, stats_message)
-        if not result:
+        if result:
+            logger.info("Stats message edited (id=%s)", message_id)
+        else:
             # Edit failed, send new message
             logger.warning("Could not edit message %s, sending new one", message_id)
             result = send_message(stats_message)
@@ -877,6 +906,7 @@ def main() -> None:
                 pin_message(new_id)
                 db.set_state("message_id", str(new_id))
                 db.set_state("message_timestamp", str(now_ts))
+                logger.info("Stats message sent (new id=%s)", new_id)
     else:
         # Delete old message if exists
         if message_id:
@@ -891,11 +921,14 @@ def main() -> None:
             pin_message(new_id)
             db.set_state("message_id", str(new_id))
             db.set_state("message_timestamp", str(now_ts))
+            logger.info("Stats message sent (new id=%s)", new_id)
 
     # Purge old data
     purged = db.purge_old_data(DATA_RETENTION_DAYS)
     if purged > 0:
         logger.warning("Purged %d old hashrate samples", purged)
+
+    logger.info("=== Bot run completed ===")
 
 
 if __name__ == "__main__":
