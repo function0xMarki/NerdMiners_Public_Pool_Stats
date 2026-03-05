@@ -95,9 +95,3 @@ NAME_SUBSTITUTIONS = '{}'
 # - WARNING: Only important events and errors (default, recommended)
 # - ERROR:   Only errors
 LOG_LEVEL = "WARNING"
-
-NEW_VAR_TEST = 5
-NEW_VAR_TEST_2 = 6
-NEW_VAR_TEST_3 = 10
-NEW_VAR_TEST_4 = 20
-NEW_VAR_TEST_5 = 50
