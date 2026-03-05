@@ -70,6 +70,9 @@ save_config_variables() {
     local FILE="$1"
     local DEST="$2"
     grep -E '^[A-Z][A-Z_0-9]+ = ' "$FILE" > "$DEST"
+    local COUNT
+    COUNT=$(wc -l < "$DEST" | tr -d ' ')
+    log "Saved $COUNT variable(s) to backup"
 }
 
 # Restore saved variables into the new config.py (line-by-line rebuild).
@@ -80,6 +83,8 @@ restore_config_variables() {
     local CONFIG="$1"
     local SAVE_FILE="$2"
     local TEMP_CONFIG="${CONFIG}.tmp"
+    local RESTORED=0
+    local KEPT_NEW=0
 
     # Remove temp file if it exists from a previous failed run
     rm -f "$TEMP_CONFIG"
@@ -97,9 +102,16 @@ restore_config_variables() {
             if [ -n "$SAVED_LINE" ]; then
                 # Restore user's value
                 printf '%s\n' "$SAVED_LINE" >> "$TEMP_CONFIG"
+                RESTORED=$((RESTORED + 1))
+                # Log if the value actually differs from the repo default
+                if [ "$SAVED_LINE" != "$CONFIG_LINE" ]; then
+                    log "  Restored: $VAR_NAME (user value differs from repo default)"
+                fi
             else
                 # New variable — keep the default from the repo
                 printf '%s\n' "$CONFIG_LINE" >> "$TEMP_CONFIG"
+                KEPT_NEW=$((KEPT_NEW + 1))
+                log "  New variable kept: $VAR_NAME"
             fi
         else
             # Comment, blank line, docstring — keep as-is from the repo
@@ -108,6 +120,7 @@ restore_config_variables() {
     done < "$CONFIG"
 
     mv "$TEMP_CONFIG" "$CONFIG"
+    log "Restore summary: $RESTORED variable(s) restored, $KEPT_NEW new variable(s) kept"
 }
 
 # ---------------------------------------------------------------------------
@@ -260,7 +273,7 @@ TOTAL_COMMITS=$(git -C "$SCRIPT_DIR" log "$LOCAL_HASH".."$REMOTE_HASH" --oneline
 COMMIT_LINES=""
 while IFS= read -r LINE; do
     COMMIT_LINES="${COMMIT_LINES}  • <code>${LINE}</code>%0A"
-done < <(git -C "$SCRIPT_DIR" log "$LOCAL_HASH".."$REMOTE_HASH" --pretty=format:"%h - %s" 2>/dev/null | head -10)
+done < <(git -C "$SCRIPT_DIR" log "$LOCAL_HASH".."$REMOTE_HASH" --format="%h - %s" 2>/dev/null | head -10)
 
 # Append overflow note if there are more than 10 commits
 EXTRA_NOTE=""
