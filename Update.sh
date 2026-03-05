@@ -119,8 +119,15 @@ restore_config_variables() {
         fi
     done < "$CONFIG"
 
-    mv "$TEMP_CONFIG" "$CONFIG"
-    log "Restore summary: $RESTORED variable(s) restored, $KEPT_NEW new variable(s) kept"
+    if ! mv "$TEMP_CONFIG" "$CONFIG"; then
+        log "ERROR: mv failed — could not replace config.py with restored version"
+        return 1
+    fi
+
+    # Verify restore by checking a known variable in the restored file
+    local VERIFY_COUNT
+    VERIFY_COUNT=$(grep -cE '^[A-Z][A-Z_0-9]+ = ' "$CONFIG" 2>/dev/null || echo "0")
+    log "Restore summary: $RESTORED variable(s) restored, $KEPT_NEW new variable(s) kept (verify: $VERIFY_COUNT vars in config)"
 }
 
 # ---------------------------------------------------------------------------
@@ -247,6 +254,11 @@ fi
 if [ -f "$CONFIG_BACKUP" ] && [ -f "$CONFIG_FILE" ]; then
     log "Restoring user configuration..."
     restore_config_variables "$CONFIG_FILE" "$CONFIG_BACKUP"
+
+    # Post-restore verification: log actual LOG_LEVEL value in config.py
+    ACTUAL_LOG_LEVEL=$(grep -E '^LOG_LEVEL = ' "$CONFIG_FILE" 2>/dev/null | head -1)
+    log "Post-restore verify: $ACTUAL_LOG_LEVEL"
+
     rm -f "$CONFIG_BACKUP"
     log "User configuration restored."
 fi
