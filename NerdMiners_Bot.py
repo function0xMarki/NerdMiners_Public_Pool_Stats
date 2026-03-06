@@ -451,7 +451,7 @@ def check_alerts(identified_workers: dict[str, dict], pool_stats: dict | None) -
             )
 
     # --- Missing miner ---
-    _DISAPPEARED_MAX_ALERTS = 3
+    _DISAPPEARED_MAX_ALERTS = 2
     if known_workers:
         for missing_id in known_workers - current_ids:
             display = get_display_name(missing_id)
