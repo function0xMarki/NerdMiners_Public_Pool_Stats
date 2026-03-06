@@ -11,7 +11,7 @@ Telegram bot that monitors your Bitcoin NerdMiners on Public-Pool and sends stat
 - **Pool statistics**: Total hashrate, miner count, your contribution percentage
 - **Bitcoin network stats**: Current block height, difficulty, network hashrate
 - **Smart alerts**: Disconnection detected, low hashrate *(vs 24h average)*, new personal records, new/disappeared miners, pool block found
-- **TOP 3 BD**: Tracks the top 10 best difficulties ever achieved across all sessions, displaying the top 3 in the stats message
+- **TOP 5 BD**: Tracks the top 10 best difficulties ever achieved across all sessions, displaying the top 5 in the stats message
 - **Auto-pinned stats message**: A single stats message is kept pinned and updated in the group; pin notification messages are automatically deleted to keep the chat clean
 - **Worker identification**: Automatically handles multiple miners with the same API name *(e.g., old NerdMiners that all report as "worker" without customization options)*
 - **SQLite storage**: Efficient 90-day rolling history for hashrate averaging and session tracking *(WAL mode for reliability)*
