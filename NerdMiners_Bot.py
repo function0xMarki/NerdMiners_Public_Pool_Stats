@@ -430,7 +430,7 @@ def identify_workers(api_workers: list[dict]) -> dict[str, dict]:
 def check_alerts(identified_workers: dict[str, dict], pool_stats: dict | None) -> list[str]:
     """
     Compare current state against saved state and generate alert messages.
-    Also handles session tracking, hashrate recording, and TOP 3 BD updates.
+    Also handles session tracking, hashrate recording, and TOP 5 BD updates.
     Returns a list of alert message strings (HTML formatted).
     """
     alerts = []
@@ -450,14 +450,31 @@ def check_alerts(identified_workers: dict[str, dict], pool_stats: dict | None) -
             )
 
     # --- Missing miner ---
+    _DISAPPEARED_MAX_ALERTS = 3
     if known_workers:
         for missing_id in known_workers - current_ids:
             display = get_display_name(missing_id)
-            alerts.append(
-                f"⚠️ <b>MINER DISAPPEARED</b>\n"
-                f"Miner: <b>{display}</b> ({html_escape(missing_id)})\n"
-                f"No longer visible in the pool"
-            )
+            count_key = f"disappeared_count_{missing_id}"
+            count = int(db.get_state(count_key, "0") or "0") + 1
+
+            if count < _DISAPPEARED_MAX_ALERTS:
+                db.set_state(count_key, str(count))
+                alerts.append(
+                    f"⚠️ <b>MINER DISAPPEARED</b>\n"
+                    f"Miner: <b>{display}</b> ({html_escape(missing_id)})\n"
+                    f"No longer visible in the pool"
+                )
+            else:
+                # Final notice — purge all traces so this ghost never triggers again
+                alerts.append(
+                    f"⚠️ <b>MINER DISAPPEARED</b>\n"
+                    f"Miner: <b>{display}</b> ({html_escape(missing_id)})\n"
+                    f"No longer visible in the pool\n"
+                    f"<i>This is the final notice. The miner has been removed from the "
+                    f"registry and will no longer be tracked.</i>"
+                )
+                db.delete_worker(missing_id)
+                logger.warning("Worker '%s' removed from registry after %d disappeared alerts", missing_id, count)
 
     # --- Per-worker checks ---
     for internal_id, w_data in identified_workers.items():
@@ -520,7 +537,7 @@ def check_alerts(identified_workers: dict[str, dict], pool_stats: dict | None) -
                 new_start_fmt = "N/A"
                 try:
                     ts = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
-                    new_start_fmt = ts.strftime("%d/%m/%Y %H:%M UTC")
+                    new_start_fmt = ts.strftime("%b %d, %Y %H:%M UTC")
                 except (ValueError, TypeError):
                     pass
 
@@ -535,7 +552,7 @@ def check_alerts(identified_workers: dict[str, dict], pool_stats: dict | None) -
                 # Open new session
                 db.open_session(internal_id, session_id, start_time)
 
-                # Update TOP 3 BD with previous session's best
+                # Update TOP 5 BD with previous session's best
                 if prev_best > 0:
                     prev_session_id = saved_worker["last_session_id"] or ""
                     db.update_hall_of_fame(internal_id, prev_best, prev_session_id)
@@ -618,7 +635,7 @@ def check_alerts(identified_workers: dict[str, dict], pool_stats: dict | None) -
                         msg += "\n🏆 <b>New All-Time Best!</b>"
                     alerts.append(msg)
 
-                # Update TOP 3 BD (always, regardless of notification setting)
+                # Update TOP 5 BD (always, regardless of notification setting)
                 db.update_hall_of_fame(internal_id, w_best_diff, session_id)
 
     # --- Pool block found ---
@@ -666,7 +683,7 @@ def build_stats_message(
 ) -> str:
     """Build the formatted statistics message for Telegram."""
     workers_count = int(_safe_float(pool_data.get("workersCount")))
-    now = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M:%S UTC")
+    now = datetime.now(timezone.utc).strftime("%b %d, %Y %H:%M:%S UTC")
 
     my_total_hashrate = sum(
         _safe_float(w.get("hashRate")) for w in identified_workers.values()
@@ -683,7 +700,7 @@ def build_stats_message(
         global_best_worker = get_display_name(entry["worker_id"])
         try:
             dt = datetime.fromisoformat(entry["achieved_at"].replace("Z", "+00:00"))
-            global_best_date = dt.strftime("%d/%m/%Y")
+            global_best_date = dt.strftime("%b %d, %Y")
         except (ValueError, TypeError):
             global_best_date = ""
 
@@ -773,10 +790,10 @@ def build_stats_message(
             "",
         ]
 
-    # TOP 3 BD
-    hof_entries = db.get_hall_of_fame(limit=3)
+    # TOP 5 BD
+    hof_entries = db.get_hall_of_fame(limit=5)
     if hof_entries:
-        lines.append("<b>━━━ TOP 3 BD ━━━</b>")
+        lines.append("<b>━━━ TOP 5 BD ━━━</b>")
         for i, entry in enumerate(hof_entries, 1):
             w_name = get_display_name(entry["worker_id"])
             diff = format_difficulty(entry["difficulty"])
@@ -785,7 +802,7 @@ def build_stats_message(
                 dt = datetime.fromisoformat(
                     entry["achieved_at"].replace("Z", "+00:00")
                 )
-                date_str = dt.strftime("%d/%m/%Y")
+                date_str = dt.strftime("%b %d, %Y")
             except (ValueError, TypeError):
                 pass
             lines.append(f"   {i}. {diff} - {w_name} ({date_str})")

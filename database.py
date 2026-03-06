@@ -506,6 +506,25 @@ def save_pool_block(block_data: dict) -> None:
 # Maintenance
 # ---------------------------------------------------------------------------
 
+def delete_worker(internal_id: str) -> None:
+    """Remove all traces of a worker from the database (workers, history, sessions, hall of fame, state)."""
+    conn = _get_connection()
+    try:
+        conn.execute("DELETE FROM hashrate_history WHERE worker_id = ?", (internal_id,))
+        conn.execute("DELETE FROM sessions WHERE worker_id = ?", (internal_id,))
+        conn.execute("DELETE FROM hall_of_fame WHERE worker_id = ?", (internal_id,))
+        conn.execute("DELETE FROM workers WHERE internal_id = ?", (internal_id,))
+        for key in (
+            f"low_hashrate_strikes_{internal_id}",
+            f"low_hashrate_alerted_at_{internal_id}",
+            f"disappeared_count_{internal_id}",
+        ):
+            conn.execute("DELETE FROM bot_state WHERE key = ?", (key,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def purge_old_data(days: int) -> int:
     """Delete hashrate history older than N days. Returns rows deleted."""
     conn = _get_connection()
