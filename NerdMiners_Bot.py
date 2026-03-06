@@ -33,6 +33,7 @@ from config import (
     NAME_SUBSTITUTIONS as _RAW_NAME_SUBSTITUTIONS,
     NOTIFY_SESSION_BD_RECORD,
     OFFLINE_TIMEOUT_MINUTES,
+    SHOW_TOP_BD,
 )
 
 # Load environment variables
@@ -790,10 +791,11 @@ def build_stats_message(
             "",
         ]
 
-    # TOP 5 BD
-    hof_entries = db.get_hall_of_fame(limit=5)
+    # TOP N BD
+    _top_bd = min(max(int(SHOW_TOP_BD), 1), 10)
+    hof_entries = db.get_hall_of_fame(limit=_top_bd)
     if hof_entries:
-        lines.append("<b>━━━ TOP 5 BD ━━━</b>")
+        lines.append(f"<b>━━━ TOP {_top_bd} BD ━━━</b>")
         for i, entry in enumerate(hof_entries, 1):
             w_name = get_display_name(entry["worker_id"])
             diff = format_difficulty(entry["difficulty"])

@@ -47,6 +47,14 @@ HASHRATE_ALERT_COOLDOWN_HOURS = 4
 NOTIFY_SESSION_BD_RECORD = False
 
 # ===========================================================================
+# STATS DISPLAY
+# ===========================================================================
+
+# Number of top Best Difficulty entries to show in the Telegram stats message.
+# The bot stores up to 10 entries internally; values above 10 are capped to 10.
+SHOW_TOP_BD = 5
+
+# ===========================================================================
 # MESSAGE MANAGEMENT
 # ===========================================================================
 
@@ -65,7 +73,7 @@ DATA_RETENTION_DAYS = 90
 
 # Number of days to keep database backups.
 # Older backups are automatically deleted on each run.
-BACKUP_RETENTION_DAYS = 30
+BACKUP_RETENTION_DAYS = 7
 
 # ===========================================================================
 # WORKER NAME SUBSTITUTIONS
@@ -83,7 +91,7 @@ BACKUP_RETENTION_DAYS = 30
 # NAME_SUBSTITUTIONS = '{"nerdoctaxe": "NerdMiner Octaxe Gamma", "worker": "NerdMiner v2"}'
 #
 # If a name is not in this dictionary, the original API name is displayed.
-NAME_SUBSTITUTIONS = '{}'
+NAME_SUBSTITUTIONS = '{"nerdoctaxe": "NerdMiner Octaxe Gamma", "worker": "NerdMiner v2"}'
 
 # ===========================================================================
 # LOGGING
@@ -94,4 +102,4 @@ NAME_SUBSTITUTIONS = '{}'
 # - INFO:    Normal operations + warnings + errors
 # - WARNING: Only important events and errors (default, recommended)
 # - ERROR:   Only errors
-LOG_LEVEL = "WARNING"
+LOG_LEVEL = "DEBUG"
