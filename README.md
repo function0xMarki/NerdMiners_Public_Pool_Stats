@@ -11,7 +11,7 @@ Telegram bot that monitors your Bitcoin NerdMiners on Public-Pool and sends stat
 - **Pool statistics**: Total hashrate, miner count, your contribution percentage
 - **Bitcoin network stats**: Current block height, difficulty, network hashrate
 - **Smart alerts**: Disconnection detected, low hashrate *(vs 24h average)*, new personal records, new/disappeared miners, pool block found
-- **TOP 5 BD**: Tracks the top 10 best difficulties ever achieved across all sessions, displaying the top 5 in the stats message
+- **TOP BD**: Tracks the top 10 best difficulties ever achieved across all sessions, displaying the top 5 by default in the stats message
 - **Auto-pinned stats message**: A single stats message is kept pinned and updated in the group; pin notification messages are automatically deleted to keep the chat clean
 - **Worker identification**: Automatically handles multiple miners with the same API name *(e.g., old NerdMiners that all report as "worker" without customization options)*
 - **SQLite storage**: Efficient 90-day rolling history for hashrate averaging and session tracking *(WAL mode for reliability)*
@@ -172,6 +172,7 @@ Tunable settings are in `config.py`:
 | `HASHRATE_ALERT_STRIKES` | Consecutive runs with a hashrate drop required before alerting. With a 30-min cron, `2` = drop must persist ≥30 min | `2` |
 | `HASHRATE_ALERT_COOLDOWN_HOURS` | Hours before resending a LOW HASHRATE alert for the same miner. Resets automatically when hashrate recovers | `4` |
 | `NOTIFY_SESSION_BD_RECORD` | `False`: alert only when a miner beats their **all-time** best difficulty. `True`: alert on every new session best, even if it doesn't beat the all-time record | `False` |
+| `SHOW_TOP_BD` | Top BDs shown on Telegram | `5` |
 | `MESSAGE_EDIT_LIMIT_HOURS` | Hours before the stats message is recreated *(see note below)* | `45` |
 | `DATA_RETENTION_DAYS` | Days to keep hashrate history in the database | `90` |
 | `BACKUP_RETENTION_DAYS` | Days to keep database backups | `30` |

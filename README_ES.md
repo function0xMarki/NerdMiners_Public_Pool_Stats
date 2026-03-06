@@ -11,7 +11,7 @@ Bot de Telegram que monitoriza tus NerdMiners de Bitcoin en Public-Pool y envía
 - **Estadísticas del pool**: Hashrate total, cantidad de mineros, tu porcentaje de contribución
 - **Estadísticas de la red Bitcoin**: Altura del bloque actual, dificultad, hashrate de la red
 - **Alertas inteligentes**: Desconexión detectada, hashrate bajo *(vs media 24h)*, nuevos récords personales, mineros nuevos/desaparecidos, bloque encontrado por el pool
-- **TOP 5 BD**: Registra el top 10 de las mejores dificultades alcanzadas a lo largo de todas las sesiones, mostrando el top 5 en el mensaje de estadísticas
+- **TOP BD**: Registra el top 10 de las mejores dificultades alcanzadas a lo largo de todas las sesiones, mostrando el top 5 por defecto en el mensaje de estadísticas
 - **Mensaje fijado auto-actualizado**: Un único mensaje de estadísticas se mantiene fijado y actualizado en el grupo; las notificaciones de fijado se eliminan automáticamente para mantener el chat limpio
 - **Identificación de workers**: Gestiona automáticamente múltiples mineros con el mismo nombre en la API *(ej: los NerdMiners antiguos que todos reportan como "worker" sin posibilidad de personalizarse)*
 - **Almacenamiento SQLite**: Historial eficiente de 90 días para promedios de hashrate y seguimiento de sesiones *(modo WAL para fiabilidad)*
@@ -173,6 +173,7 @@ Los ajustes configurables están en `config.py`:
 | `HASHRATE_ALERT_STRIKES` | Ejecuciones consecutivas con caída de hashrate necesarias antes de alertar. Con cron cada 30 min, `2` = la caída debe persistir ≥30 min | `2` |
 | `HASHRATE_ALERT_COOLDOWN_HOURS` | Horas antes de reenviar una alerta LOW HASHRATE para el mismo minero. Se reinicia automáticamente cuando el hashrate se recupera | `4` |
 | `NOTIFY_SESSION_BD_RECORD` | `False`: solo avisa cuando un minero supera su **mejor dificultad histórica**. `True`: avisa en cada nuevo récord de sesión, aunque no supere el récord histórico | `False` |
+| `SHOW_TOP_BD` | Top BD mostrados en Telegram | `5` |
 | `MESSAGE_EDIT_LIMIT_HOURS` | Horas antes de recrear el mensaje de estadísticas *(ver nota abajo)* | `45` |
 | `DATA_RETENTION_DAYS` | Días de retención del historial de hashrate en la base de datos | `90` |
 | `BACKUP_RETENTION_DAYS` | Días de retención de las copias de seguridad | `30` |
