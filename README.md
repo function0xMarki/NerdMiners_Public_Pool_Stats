@@ -5,6 +5,14 @@
 
 Telegram bot that monitors your Bitcoin NerdMiners on Public-Pool and sends statistics and smart alerts to a Telegram group.
 
+<div align="center">
+  
+![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
+![pip](https://img.shields.io/badge/Python-pip-green.svg)
+[![License](https://img.shields.io/badge/MIT.License-yellow.svg)](LICENSE)
+
+</div>
+
 ## Features
 
 - **Miner monitoring**: Hashrate *(instant + 24h average)*, best difficulty *(session + all-time)*, uptime, online/offline status
