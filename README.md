@@ -9,7 +9,7 @@ Telegram bot that monitors your Bitcoin NerdMiners on Public-Pool and sends stat
   
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 ![pip](https://img.shields.io/badge/Python-pip-green.svg)
-[![License](https://img.shields.io/badge/MIT.License-yellow.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 </div>
 
