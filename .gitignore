@@ -15,6 +15,12 @@ Backup/
 *.log
 *.db
 
+# Update mechanism runtime files
+.update.lock
+.config.py.bak
+*.bak
+config.py.tmp
+
 # Python
 __pycache__/
 *.py[cod]

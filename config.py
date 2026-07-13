@@ -7,13 +7,17 @@ not here. See .env.example for the template.
 """
 
 # ===========================================================================
-# AUTO-UPDATE
+# UPDATES
 # ===========================================================================
 
-# Enable or disable automatic updates from the GitHub repository.
-# True (default): the bot checks for updates on every run and applies them automatically.
-# False:          disables all automatic updates; you must update manually via git.
-AUTO_UPDATE = True
+# How updates from the GitHub repository are applied.
+# "manual" (default): the bot checks for updates on every run and, when a new
+#                     version is available, sends a notification to Telegram.
+#                     You then apply it by sending /update in the group (as
+#                     group owner/admin) or by running ./update.sh on the server.
+# "auto":             the bot applies updates automatically on every run,
+#                     without asking (legacy behavior).
+UPDATE_MODE = "manual"
 
 # ===========================================================================
 # API

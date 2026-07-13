@@ -7,6 +7,7 @@ Telegram bot that monitors your Bitcoin NerdMiners on Public-Pool and sends stat
 
 <div align="center">
   
+![Version](https://img.shields.io/badge/Version-1.1.0-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 ![pip](https://img.shields.io/badge/Python-pip-green.svg)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -24,6 +25,8 @@ Telegram bot that monitors your Bitcoin NerdMiners on Public-Pool and sends stat
 - **Worker identification**: Automatically handles multiple miners with the same API name *(e.g., old NerdMiners that all report as "worker" without customization options)*
 - **SQLite storage**: Efficient 90-day rolling history for hashrate averaging and session tracking *(WAL mode for reliability)*
 - **Automatic backups**: Database backups every 24 hours with 30-day retention
+- **Manual updates via Telegram**: The bot announces new versions in the group; the group owner/admin applies them with the `/update` command *(or by running `update.sh` on the server)*
+- **Self-healing environment**: On every run the bot verifies and repairs its own environment *(missing directories, broken venv, missing dependencies, insecure file permissions)*
 
 <p align="center">
   <img width="251" height="460" alt="demo" src="https://github.com/user-attachments/assets/0e418066-41a3-420a-9a9b-d088cfc043d8" />
@@ -108,8 +111,8 @@ cd NerdMiners_Public_Pool_Stats
 Run the setup script:
 
 ```bash
-chmod +x First_Setup.sh
-./First_Setup.sh
+chmod +x install.sh
+./install.sh
 ```
 
 The script will create `.env` from the `.env.example` template on first run.
@@ -127,12 +130,14 @@ BTC_ADDRESS=bc1q...
 ```
 
 Then run the setup script again.
-The configuration script will verify that all variables are set and will begin the bot environment setup process, automatically installing the necessary dependencies.
+The script will verify that all variables are set and will set up the bot environment, automatically installing the necessary dependencies and securing file permissions.
 If you're missing any program like Python or pip, it will notify you and show you the command to install it.
 
 ```bash
-./First_Setup.sh
+./install.sh
 ```
+
+> `install.sh` is also the repair tool: the bot runs `install.sh --heal` automatically on every start to fix anything broken *(missing directories, damaged venv, missing dependencies, wrong permissions)*. If the bot ever stops running because the venv was deleted or corrupted, just run `./install.sh` manually once.
 
 ### 3. Customize Worker Names *(Optional)*
 
@@ -143,15 +148,15 @@ Keep in mind that you should assign a different name to each worker in its confi
 ```python
 NAME_SUBSTITUTIONS = '{"nerdoctaxe_1": "NerdMiner Octaxe Gamma Home", "nerdoctaxe_2": "NerdMiner Octaxe Gamma Work", "worker": "NerdMiner v2 Living Room", "worker_2": "NerdMiner v2 Office"}'
 ```
-> **Important**: The value must be a **single-line JSON string** — do not split it across lines. This format allows the auto-update system to preserve your names during upgrades.
+> **Important**: The value must be a **single-line JSON string** — do not split it across lines. This format allows the update system to preserve your names during upgrades.
 *For old NerdMiners that all report as `worker` in the API, the bot assigns incremental IDs (`worker_1`, `worker_2`, ...). Run the bot once and check the log to discover assigned IDs.*
 
 ### 4. Set Up Cron Job
 
 The bot is designed to run periodically via cron — it is **not** a continuously running service.
-Each execution fetches the latest data, updates the pinned stats message, sends any alerts, and exits.
+Each execution repairs its environment if needed, fetches the latest data, updates the pinned stats message, sends any alerts, and exits.
 
-At the end of the `First_Setup.sh` configuration script, you will be shown a command that you must execute to create the cron entry in the system's crontab.
+At the end of the `install.sh` setup script, you will be shown a command that you must execute to create the cron entry in the system's crontab.
 
 > **Important — Execution frequency**:
 > - **Recommended frequency: every 30 minutes** (`*/30 * * * *`).
@@ -173,7 +178,7 @@ Tunable settings are in `config.py`:
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `AUTO_UPDATE` | Enable automatic updates from the GitHub repository. `False` disables all auto-updates; you must update manually via git | `True` |
+| `UPDATE_MODE` | `"manual"`: the bot announces new versions in Telegram and you apply them with `/update` or `update.sh` *(see [Updates](#updates))*. `"auto"`: updates are applied automatically on every run *(legacy behavior)* | `"manual"` |
 | `API_BASE_URL` | API base URL. Pre-configured for **public-pool.io**. Self-hosted instances use a different URL and port *(e.g., `http://umbrel.local:3334/api`)*. See [Self-hosted public-pool](#self-hosted-public-pool) below | `https://public-pool.io:40557/api` |
 | `OFFLINE_TIMEOUT_MINUTES` | Minutes of inactivity before a miner is considered offline | `5` |
 | `HASHRATE_DROP_PERCENT` | Hashrate drop vs 24h average to trigger alert | `30` |
@@ -207,17 +212,34 @@ Tunable settings are in `config.py`:
 | YOUR MINER FOUND A BLOCK | One of YOUR miners found a Bitcoin block *(matched by your BTC_ADDRESS)* |
 | BLOCK FOUND BY THE POOL | Another miner on public-pool.io found a Bitcoin block |
 
+## Updates
+
+Updates are **manual by default** — you stay in control of when new code goes live:
+
+1. On every run, the bot checks the GitHub repository. When a new version is available, it sends a single notification to the group *(once per version, no spam)* with the version transition, the list of new commits, and how to apply it.
+2. To apply the update, choose whichever you prefer:
+   - **From Telegram**: send `/update` in the group. Only the **group owner or an administrator** can use this command; anyone else is politely refused. Since the bot runs on a schedule, the command **stays queued** and is executed on the bot's next scheduled start *(within ~30 min with the recommended cron)*. Sending `/update` several times queues just **one** update.
+   - **From the server**: run `./update.sh` in the bot directory for immediate effect.
+3. Once applied, the bot confirms in the group with a nicely formatted message: version transition *(e.g., `v1.1.0 → v1.2.0`)*, and each commit with its description. The new code takes effect on the bot's next scheduled run.
+
+The update always preserves your `.env`, your `config.py` values, the database, logs, and backups. If the update adds new configuration options, the bot tells you about them and they start with safe defaults.
+
+Any other message or command sent to the group is ignored by the bot — `/update` is the only command it listens to.
+
+> Prefer the old fully automatic behavior? Set `UPDATE_MODE = "auto"` in `config.py` and updates will be applied on every run without asking.
+
 ## How It Works
 
-1. **Auto-update**: Checks the remote repository for new versions and applies them automatically, preserving your configuration; sends a Telegram notification listing all commits applied since the last update
-2. **Database init**: Creates SQLite tables if they don't exist
-3. **Backup**: Creates a timestamped copy of the database *(skipped if one less than 24h old exists)*
-4. **Fetch data**: Queries the public-pool.io API for your miners, pool stats, and network stats
-5. **Identify workers**: Maps API workers to stable internal IDs *(handles duplicate names)*
-6. **Check alerts**: Compares current state against saved state, detects changes, records sessions
-7. **Send alerts**: Any triggered alerts are sent as individual messages to the group
-8. **Update stats**: Builds the stats message, edits the existing pinned message *(or creates a new one if too old)*
-9. **Purge**: Deletes hashrate samples older than `DATA_RETENTION_DAYS`
+1. **Self-heal**: Runs `install.sh --heal` to verify and repair the environment *(directories, venv, dependencies, permissions)*
+2. **Update handling**: Reads queued group commands; applies the update if an authorized `/update` is pending, otherwise announces newly available versions *(once per version)*
+3. **Database init**: Creates SQLite tables if they don't exist *(and migrates old schemas)*
+4. **Backup**: Creates a timestamped copy of the database *(skipped if one less than 24h old exists)*
+5. **Fetch data**: Queries the public-pool.io API for your miners, pool stats, and network stats
+6. **Identify workers**: Maps API workers to stable internal IDs *(handles duplicate names)*
+7. **Check alerts**: Compares current state against saved state, detects changes, records sessions
+8. **Send alerts**: Any triggered alerts are sent as individual messages to the group
+9. **Update stats**: Builds the stats message, edits the existing pinned message *(or creates a new one if too old)*
+10. **Purge**: Deletes hashrate samples older than `DATA_RETENTION_DAYS`
 
 ## Project Structure
 
@@ -225,11 +247,12 @@ Tunable settings are in `config.py`:
 NerdMiners_Public_Pool_Stats/
 ├── .env                        # Secrets: BOT_TOKEN, CHAT_ID, BTC_ADDRESS (not in git)
 ├── .env.example                # Template for .env
+├── VERSION                     # Current bot version (single source of truth)
 ├── config.py                   # Tunable bot settings and worker name substitutions
 ├── database.py                 # SQLite persistence layer (WAL mode, foreign keys)
 ├── NerdMiners_Bot.py           # Main bot script (entry point)
-├── First_Setup.sh              # First-time setup script
-├── Update.sh                   # Auto-update script (called by NerdMiners_Bot.py on each run)
+├── install.sh                  # Setup script + self-heal (--heal, run on every bot start)
+├── update.sh                   # Manual update script (/update command or terminal)
 ├── requirements.txt            # Python dependencies
 ├── DB.db                       # SQLite database (auto-generated)
 ├── Logs/                       # Log files directory (auto-generated)
@@ -237,6 +260,17 @@ NerdMiners_Public_Pool_Stats/
 └── Backup/                     # Database backups (auto-generated, 30-day retention)
     └── NerdMiners_Public_Pool_Stats_MMDDYYYY_HHMMSS.db
 ```
+
+## Security & Permissions
+
+- `.env` *(secrets)* and all database files are kept at `600` *(owner read/write only)*; scripts at `700`; `Logs/` and `Backup/` at `700`. The bot re-applies these permissions on every run.
+- The `/update` command is restricted to the group owner and administrators.
+- Remember to disable **Allow Groups** in @BotFather *(see setup above)* so nobody can add your bot to another group.
+
+## Troubleshooting
+
+- **The bot stopped running and there is nothing in the logs**: the venv may have been deleted or corrupted so cron cannot even start Python. Run `./install.sh` on the server — it rebuilds everything — and wait for the next cron run.
+- **An update failed**: the bot sends the failure reason to the group. Your configuration backup is kept at `.config.py.bak`; running `./update.sh` again after fixing the cause is safe.
 
 ## API Endpoints
 

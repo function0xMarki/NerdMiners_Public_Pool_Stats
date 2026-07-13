@@ -7,9 +7,10 @@ Bot de Telegram que monitoriza tus NerdMiners de Bitcoin en Public-Pool y envía
 
 <div align="center">
   
+![Version](https://img.shields.io/badge/Version-1.1.0-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 ![pip](https://img.shields.io/badge/Python-pip-green.svg)
-[![License](https://img.shields.io/badge/MIT.License-yellow.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 </div>
 
@@ -23,7 +24,9 @@ Bot de Telegram que monitoriza tus NerdMiners de Bitcoin en Public-Pool y envía
 - **Mensaje fijado auto-actualizado**: Un único mensaje de estadísticas se mantiene fijado y actualizado en el grupo; las notificaciones de fijado se eliminan automáticamente para mantener el chat limpio
 - **Identificación de workers**: Gestiona automáticamente múltiples mineros con el mismo nombre en la API *(ej: los NerdMiners antiguos que todos reportan como "worker" sin posibilidad de personalizarse)*
 - **Almacenamiento SQLite**: Historial eficiente de 90 días para promedios de hashrate y seguimiento de sesiones *(modo WAL para fiabilidad)*
-- **Backups automáticos**: Copias de seguridad cada 24h de la base de datos con retención de 30 días.
+- **Backups automáticos**: Copias de seguridad de la base de datos cada 24 h con retención de 30 días
+- **Actualizaciones manuales desde Telegram**: El bot anuncia las nuevas versiones en el grupo; el propietario o un administrador del grupo las aplica con el comando `/update` *(o ejecutando `update.sh` en el servidor)*
+- **Entorno auto-reparable**: En cada ejecución el bot verifica y repara su propio entorno *(directorios que falten, venv dañado, dependencias ausentes, permisos de archivos inseguros)*
 
 <p align="center">
   <img width="251" height="460" alt="demo" src="https://github.com/user-attachments/assets/0e418066-41a3-420a-9a9b-d088cfc043d8" />
@@ -71,14 +74,14 @@ Sigue estos pasos cuidadosamente para crear y configurar tu bot de Telegram.
 
 El bot necesita el Chat ID del grupo para saber dónde enviar los mensajes.
 
-**Método 1 — Usando la API de Telegram** (recomendado):
+**Método 1 — Usando el enlace del mensaje** (recomendado):
 
 1. Envía cualquier mensaje en el grupo *(ej: "hola")*
-2. Pulsa con el botón derecho del ratón y selecciona "Enlace al mensaje"
-3. Pega la URL que acaba de copiarse y tendrá una estructura similar a esta:
-- `https://t.me/c/3892682082/1`
-4. El ID del tu grupo será el primer grupo de números, y deberás añadirle `-100`
-- Según este ejemplo `-100`+`3892682082` = `-1003892682082`
+2. Pulsa sobre el mensaje con el botón derecho del ratón y selecciona "Copiar enlace del mensaje"
+3. Pega la URL copiada; tendrá una estructura similar a esta:
+   - `https://t.me/c/3892682082/1`
+4. El ID de tu grupo será el primer grupo de números, y deberás añadirle `-100` delante
+   - Según este ejemplo: `-100` + `3892682082` = `-1003892682082`
 
 ### 5. Desactivar "Permitir Grupos" en BotFather
 
@@ -105,11 +108,11 @@ cd NerdMiners_Public_Pool_Stats
 
 ### 2. Configurar el Bot
 
-Ejecuta el script de configuración:
+Ejecuta el script de instalación:
 
 ```bash
-chmod +x First_Setup.sh
-./First_Setup.sh
+chmod +x install.sh
+./install.sh
 ```
 
 El script creará `.env` a partir de la plantilla `.env.example` en la primera ejecución.
@@ -126,33 +129,34 @@ CHAT_ID=-1001234567890
 BTC_ADDRESS=bc1q...
 ```
 
-Después ejecuta el script de configuración otra vez.
-El Script de configuración revisará que todas las variables están insertadas y comenzará el proceso de configuración del entorno de Bot, y se instalarán automáticamente las dependencias necesarias.
-En caso de que te falte algún programa como Python o pip, te lo dirá, mostrándote el comando para que puedas instalarlo.
+Después ejecuta el script de instalación otra vez.
+El script verificará que todas las variables estén establecidas y preparará el entorno del bot, instalando automáticamente las dependencias necesarias y asegurando los permisos de los archivos.
+Si te falta algún programa como Python o pip, te lo indicará mostrándote el comando para instalarlo.
 
 ```bash
-./First_Setup.sh
+./install.sh
 ```
+
+> `install.sh` también es la herramienta de reparación: el bot ejecuta `install.sh --heal` automáticamente en cada arranque para arreglar cualquier cosa rota *(directorios que falten, venv dañado, dependencias ausentes, permisos incorrectos)*. Si el bot dejara de funcionar porque el venv se borró o se corrompió, basta con ejecutar `./install.sh` manualmente una vez.
 
 ### 3. Personalizar Nombres de Workers *(Opcional)*
 
-Edita `config.py` para establecer nombres personalizados para tus mineros sobre como se muestran los nombres en los mensajes de Telegram:
-De esta manera puedes asignar un nombre más descriptivo a tu minero relacionado por el nombre del worker que aparece en Public-Pool.
-Ten en cuenta que deberás asignar un nombre diferente a cada worker en la configuración del mismo.
+Edita `config.py` para establecer nombres personalizados para tus mineros y cómo se mostrarán en los mensajes de Telegram.
+De esta manera puedes asignar un nombre más descriptivo a tu minero, asociado al nombre del worker que aparece en Public-Pool.
+Ten en cuenta que deberás asignar un nombre diferente a cada worker en la configuración de este.
 
 ```python
 NAME_SUBSTITUTIONS = '{"nerdoctaxe_1": "NerdMiner Octaxe Gamma Casa", "nerdoctaxe_2": "NerdMiner Octaxe Gamma Trabajo", "worker": "NerdMiner v2 Salón", "worker_2": "NerdMiner v2 Oficina"}'
 ```
-> **Importante**: El valor debe ser una **cadena JSON en una sola línea** — no la dividas en varias líneas. Este formato permite que el sistema de auto-actualización preserve tus nombres durante las actualizaciones.
+> **Importante**: El valor debe ser una **cadena JSON en una sola línea** — no la dividas en varias líneas. Este formato permite que el sistema de actualizaciones preserve tus nombres al actualizar.
 *Para los NerdMiners antiguos que todos reportan como `worker` en la API, el bot asigna IDs incrementales (`worker_1`, `worker_2`, ...). Ejecuta el bot una vez y revisa el log para descubrir los IDs asignados.*
 
 ### 4. Configurar Tarea Cron
 
 El bot está diseñado para ejecutarse periódicamente mediante cron — **no** es un servicio de ejecución continua.
-Cada ejecución obtiene los datos más recientes, actualiza el mensaje fijado de estadísticas, envía las alertas que correspondan y finaliza.
+Cada ejecución repara su entorno si hace falta, obtiene los datos más recientes, actualiza el mensaje fijado de estadísticas, envía las alertas que correspondan y finaliza.
 
-Al final del script de configuración `First_Setup.sh`, se te mostrará un comando que deberás ejecutar para crear el cron dentro del crontab el sistema.
-
+Al final del script de instalación `install.sh`, se te mostrará un comando que deberás ejecutar para crear la entrada en el crontab del sistema.
 
 > **Importante — Frecuencia de ejecución**:
 > - **Frecuencia recomendada: cada 30 minutos** (`*/30 * * * *`).
@@ -174,7 +178,7 @@ Los ajustes configurables están en `config.py`:
 
 | Ajuste | Descripción | Por defecto |
 |--------|-------------|-------------|
-| `AUTO_UPDATE` | Activa las actualizaciones automáticas desde el repositorio de GitHub. `False` desactiva todas las actualizaciones automáticas; deberás actualizar manualmente con git | `True` |
+| `UPDATE_MODE` | `"manual"`: el bot anuncia las nuevas versiones en Telegram y tú las aplicas con `/update` o `update.sh` *(ver [Actualizaciones](#actualizaciones))*. `"auto"`: las actualizaciones se aplican automáticamente en cada ejecución *(comportamiento antiguo)* | `"manual"` |
 | `API_BASE_URL` | URL base de la API. Preconfigurado para **public-pool.io**. Las instancias auto-alojadas usan una URL y puerto propios *(ej: `http://umbrel.local:3334/api`)*. Ver [public-pool auto-alojado](#public-pool-auto-alojado) más abajo | `https://public-pool.io:40557/api` |
 | `OFFLINE_TIMEOUT_MINUTES` | Minutos de inactividad para considerar un minero offline | `5` |
 | `HASHRATE_DROP_PERCENT` | Porcentaje de caída del hashrate vs media 24h para activar alerta | `30` |
@@ -208,17 +212,34 @@ Los ajustes configurables están en `config.py`:
 | YOUR MINER FOUND A BLOCK | Uno de TUS mineros encontró un bloque de Bitcoin *(identificado por tu BTC_ADDRESS)* |
 | BLOCK FOUND BY THE POOL | Otro minero en public-pool.io encontró un bloque de Bitcoin |
 
+## Actualizaciones
+
+Las actualizaciones son **manuales por defecto** — tú decides cuándo entra en producción el código nuevo:
+
+1. En cada ejecución, el bot comprueba el repositorio de GitHub. Cuando hay una nueva versión disponible, envía una única notificación al grupo *(una vez por versión, sin spam)* con la transición de versión, la lista de commits nuevos y cómo aplicarla.
+2. Para aplicar la actualización, elige lo que prefieras:
+   - **Desde Telegram**: envía `/update` en el grupo. Solo el **propietario del grupo o un administrador** puede usar este comando; a cualquier otro usuario se le rechaza educadamente. Como el bot se ejecuta de forma programada, el comando **queda en cola** y se ejecuta en el siguiente arranque programado del bot *(en un máximo de ~30 min con el cron recomendado)*. Enviar `/update` varias veces encola una **única** actualización.
+   - **Desde el servidor**: ejecuta `./update.sh` en el directorio del bot para aplicarla al instante.
+3. Una vez aplicada, el bot lo confirma en el grupo con un mensaje bien formateado: transición de versión *(ej: `v1.1.0 → v1.2.0`)* y cada commit con su descripción. El código nuevo entra en vigor en la siguiente ejecución programada del bot.
+
+La actualización siempre preserva tu `.env`, tus valores de `config.py`, la base de datos, los logs y los backups. Si la actualización añade nuevas opciones de configuración, el bot te lo comunica y estas arrancan con valores por defecto seguros.
+
+Cualquier otro mensaje o comando enviado al grupo es ignorado por el bot — `/update` es el único comando que escucha.
+
+> ¿Prefieres el comportamiento totalmente automático de antes? Establece `UPDATE_MODE = "auto"` en `config.py` y las actualizaciones se aplicarán en cada ejecución sin preguntar.
+
 ## Cómo Funciona
 
-1. **Auto-actualización**: Comprueba el repositorio remoto para nuevas versiones y las aplica automáticamente, preservando tu configuración; envía una notificación a Telegram listando todos los commits aplicados desde la última actualización
-2. **Inicialización de BD**: Crea las tablas SQLite si no existen
-3. **Backup**: Crea una copia con marca de tiempo de la base de datos *(se omite si ya existe una con menos de 24h)*
-4. **Obtener datos**: Consulta la API de public-pool.io para tus mineros, estadísticas del pool y de la red
-5. **Identificar workers**: Mapea los workers de la API a IDs internos estables *(gestiona nombres duplicados)*
-6. **Comprobar alertas**: Compara el estado actual con el guardado, detecta cambios, registra sesiones
-7. **Enviar alertas**: Las alertas activadas se envían como mensajes individuales al grupo
-8. **Actualizar estadísticas**: Construye el mensaje de estadísticas, edita el mensaje fijado existente *(o crea uno nuevo si es demasiado antiguo)*
-9. **Purga**: Elimina muestras de hashrate más antiguas que `DATA_RETENTION_DAYS`
+1. **Auto-reparación**: Ejecuta `install.sh --heal` para verificar y reparar el entorno *(directorios, venv, dependencias, permisos)*
+2. **Gestión de actualizaciones**: Lee los comandos en cola del grupo; aplica la actualización si hay un `/update` autorizado pendiente, o anuncia las versiones nuevas disponibles *(una vez por versión)*
+3. **Inicialización de BD**: Crea las tablas SQLite si no existen *(y migra esquemas antiguos)*
+4. **Backup**: Crea una copia con marca de tiempo de la base de datos *(se omite si ya existe una con menos de 24h)*
+5. **Obtener datos**: Consulta la API de public-pool.io para tus mineros, estadísticas del pool y de la red
+6. **Identificar workers**: Mapea los workers de la API a IDs internos estables *(gestiona nombres duplicados)*
+7. **Comprobar alertas**: Compara el estado actual con el guardado, detecta cambios, registra sesiones
+8. **Enviar alertas**: Las alertas activadas se envían como mensajes individuales al grupo
+9. **Actualizar estadísticas**: Construye el mensaje de estadísticas, edita el mensaje fijado existente *(o crea uno nuevo si es demasiado antiguo)*
+10. **Purga**: Elimina muestras de hashrate más antiguas que `DATA_RETENTION_DAYS`
 
 ## Estructura del Proyecto
 
@@ -226,11 +247,12 @@ Los ajustes configurables están en `config.py`:
 NerdMiners_Public_Pool_Stats/
 ├── .env                        # Secretos: BOT_TOKEN, CHAT_ID, BTC_ADDRESS (no está en git)
 ├── .env.example                # Plantilla para .env
+├── VERSION                     # Versión actual del bot (fuente única de verdad)
 ├── config.py                   # Ajustes configurables del bot y nombres de workers
 ├── database.py                 # Capa de persistencia SQLite (modo WAL, claves foráneas)
 ├── NerdMiners_Bot.py           # Script principal del bot (punto de entrada)
-├── First_Setup.sh              # Script de configuración inicial
-├── Update.sh                   # Script de auto-actualización (llamado por NerdMiners_Bot.py en cada ejecución)
+├── install.sh                  # Script de instalación + auto-reparación (--heal, en cada arranque)
+├── update.sh                   # Script de actualización manual (comando /update o terminal)
 ├── requirements.txt            # Dependencias de Python
 ├── DB.db                       # Base de datos SQLite (auto-generada)
 ├── Logs/                       # Directorio de logs (auto-generado)
@@ -238,6 +260,17 @@ NerdMiners_Public_Pool_Stats/
 └── Backup/                     # Copias de seguridad de la BD (auto-generadas, retención 30 días)
     └── NerdMiners_Public_Pool_Stats_MMDDYYYY_HHMMSS.db
 ```
+
+## Seguridad y Permisos
+
+- `.env` *(secretos)* y todos los archivos de base de datos se mantienen en `600` *(lectura/escritura solo para el propietario)*; los scripts en `700`; `Logs/` y `Backup/` en `700`. El bot re-aplica estos permisos en cada ejecución.
+- El comando `/update` está restringido al propietario y a los administradores del grupo.
+- Recuerda desactivar **Allow Groups** en @BotFather *(ver la configuración más arriba)* para que nadie pueda añadir tu bot a otro grupo.
+
+## Solución de Problemas
+
+- **El bot dejó de ejecutarse y no hay nada en los logs**: puede que el venv se haya borrado o corrompido y cron ni siquiera pueda arrancar Python. Ejecuta `./install.sh` en el servidor — lo reconstruye todo — y espera a la siguiente ejecución del cron.
+- **Una actualización falló**: el bot envía el motivo del fallo al grupo. Tu copia de seguridad de la configuración se conserva en `.config.py.bak`; volver a ejecutar `./update.sh` tras corregir la causa es seguro.
 
 ## Endpoints de la API
 

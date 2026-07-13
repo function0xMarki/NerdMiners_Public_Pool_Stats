@@ -22,7 +22,6 @@ from dotenv import load_dotenv
 import database as db
 from config import (
     API_BASE_URL,
-    AUTO_UPDATE,
     BACKUP_RETENTION_DAYS,
     DATA_RETENTION_DAYS,
     HASHRATE_ALERT_COOLDOWN_HOURS,
@@ -34,10 +33,15 @@ from config import (
     NOTIFY_SESSION_BD_RECORD,
     OFFLINE_TIMEOUT_MINUTES,
     SHOW_TOP_BD,
+    UPDATE_MODE,
 )
 
 # Load environment variables
 load_dotenv()
+
+# New files (DB, WAL journals, logs, backups) must be readable only by the
+# user running the bot: they contain chat IDs, tokens paths and mining data.
+os.umask(0o077)
 
 # Worker name substitutions (JSON string from config.py)
 try:
@@ -58,6 +62,12 @@ NETWORK_API_URL = f"{API_BASE_URL}/network"
 SCRIPT_DIR = Path(__file__).parent
 LOGS_DIR = SCRIPT_DIR / "Logs"
 BACKUP_DIR = SCRIPT_DIR / "Backup"
+
+# Bot version (single source of truth: the VERSION file)
+try:
+    BOT_VERSION = (SCRIPT_DIR / "VERSION").read_text(encoding="utf-8").strip() or "unknown"
+except OSError:
+    BOT_VERSION = "unknown"
 
 # Ensure directories exist
 LOGS_DIR.mkdir(exist_ok=True)
@@ -317,6 +327,176 @@ def unpin_message(message_id: int) -> bool:
         "chat_id": CHAT_ID,
         "message_id": message_id,
     }) is not None
+
+
+# ===========================================================================
+# Update management (/update command, availability notifications)
+# ===========================================================================
+
+def _is_group_admin(user_id) -> bool:
+    """Check whether a Telegram user is the group owner or an administrator."""
+    if user_id is None:
+        return False
+    member = telegram_request("getChatMember", {
+        "chat_id": CHAT_ID,
+        "user_id": user_id,
+    })
+    if not member:
+        return False
+    return member.get("status") in ("creator", "administrator")
+
+
+def handle_telegram_updates() -> bool:
+    """Process pending Telegram updates for the configured group.
+
+    Only the /update command is acted upon; every other message or command is
+    ignored. Pending pin-notification service messages are deleted along the
+    way. Any number of queued /update messages triggers a single update run.
+
+    Returns True when an authorized /update (group owner/admin) was received.
+    """
+    try:
+        resp = requests.post(
+            f"{TELEGRAM_API}/getUpdates", json={"timeout": 2}, timeout=10
+        )
+        updates = resp.json().get("result", [])
+    except (requests.RequestException, ValueError):
+        return False
+    if not updates:
+        return False
+
+    update_requested = False
+    denied_notice_sent = False
+
+    for update in updates:
+        msg = update.get("message") or {}
+        chat = msg.get("chat") or {}
+        if str(chat.get("id")) != str(CHAT_ID):
+            continue
+
+        # Clean up pin-notification service messages left from previous runs
+        if "pinned_message" in msg:
+            delete_message(msg["message_id"])
+            continue
+
+        text = msg.get("text") or ""
+        command = text.split()[0].split("@")[0].lower() if text.strip() else ""
+        if command != "/update":
+            continue  # every other message or command is ignored
+
+        # Authorization: group owner/admin only. Messages sent as the group
+        # itself (anonymous admins) always come from an admin.
+        sender_chat = msg.get("sender_chat") or {}
+        from_user = msg.get("from") or {}
+        if str(sender_chat.get("id")) == str(CHAT_ID):
+            authorized = True
+        else:
+            authorized = _is_group_admin(from_user.get("id"))
+
+        if authorized:
+            update_requested = True
+            logger.warning(
+                "/update command received from %s",
+                from_user.get("username") or from_user.get("id") or "anonymous admin",
+            )
+        elif not denied_notice_sent:
+            send_message("⛔ Only the group owner or an admin can run /update.")
+            denied_notice_sent = True
+            logger.warning("/update denied for user %s", from_user.get("id"))
+
+    # Confirm all processed updates so they are not delivered again
+    max_update_id = max(u.get("update_id", 0) for u in updates)
+    try:
+        requests.post(
+            f"{TELEGRAM_API}/getUpdates",
+            json={"offset": max_update_id + 1, "timeout": 0},
+            timeout=10,
+        )
+    except requests.RequestException:
+        pass
+
+    return update_requested
+
+
+def run_update_script(flag: str) -> bool:
+    """Run update.sh with the given flag. Returns True if it exited cleanly.
+
+    The update is applied on disk immediately; the running process keeps its
+    old code, so changes take effect on the bot's next scheduled run.
+    """
+    script = SCRIPT_DIR / "update.sh"
+    if not script.is_file():
+        logger.error("update.sh not found, cannot update")
+        return False
+    try:
+        result = subprocess.run(
+            [str(script), flag],
+            cwd=str(SCRIPT_DIR),
+            timeout=300,
+            capture_output=True,
+        )
+        logger.warning("update.sh %s finished with exit code %s", flag, result.returncode)
+        return result.returncode == 0
+    except Exception as e:
+        logger.error("update.sh execution failed: %s", e)
+        return False
+
+
+def _git(*args: str, timeout: int = 30) -> str | None:
+    """Run a git command in the bot directory. Returns stdout or None on error."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(SCRIPT_DIR), *args],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        if result.returncode != 0:
+            return None
+        return result.stdout.strip()
+    except Exception:
+        return None
+
+
+def check_update_available() -> None:
+    """Notify the group when a new version exists on the remote (once per version)."""
+    if not (SCRIPT_DIR / ".git").is_dir():
+        return
+    if _git("fetch", "origin", timeout=60) is None:
+        logger.warning("Update check: git fetch failed")
+        return
+    local = _git("rev-parse", "HEAD")
+    remote = _git("rev-parse", "origin/main")
+    if not local or not remote or local == remote:
+        return
+    commits = _git("log", "HEAD..origin/main", "--format=%h - %s")
+    if not commits:
+        return  # local is ahead of remote; nothing to apply
+    if db.get_state("update_notified_hash") == remote:
+        return  # this version was already announced
+
+    remote_version = (_git("show", "origin/main:VERSION") or "unknown").strip()
+    commit_list = commits.splitlines()
+    commit_lines = "\n".join(
+        f"  • <code>{html_escape(line)}</code>" for line in commit_list[:10]
+    )
+    if len(commit_list) > 10:
+        commit_lines += f"\n  <i>...and {len(commit_list) - 10} more commit(s)</i>"
+
+    send_message(
+        f"🔔 <b>UPDATE AVAILABLE</b>\n\n"
+        f"📦 <b>v{html_escape(BOT_VERSION)}  →  v{html_escape(remote_version)}</b>\n\n"
+        f"🧾 <b>{len(commit_list)} new commit(s):</b>\n{commit_lines}\n\n"
+        f"To apply it, either:\n"
+        f"  • Send /update in this group <i>(group owner/admin only)</i>. "
+        f"The command stays queued and the update will run on the bot's next "
+        f"scheduled start (within ~30 min).\n"
+        f"  • Or run <code>update.sh</code> on the server to apply it immediately."
+    )
+    db.set_state("update_notified_hash", remote)
+    logger.warning(
+        "Update available notification sent (%s -> %s)", local[:7], remote[:7]
+    )
 
 
 # ===========================================================================
@@ -850,6 +1030,9 @@ def build_stats_message(
             except (ValueError, TypeError):
                 pass
             lines.append(f"   {i}. {diff} - {w_name} ({date_str})")
+        lines.append("")
+
+    lines.append(f"<i>NerdMiners Bot v{html_escape(BOT_VERSION)}</i>")
 
     return "\n".join(lines)
 
@@ -860,25 +1043,25 @@ def build_stats_message(
 
 def main() -> None:
     """Main entry point for the bot."""
-    # Ensure all shell scripts are executable (guards against git resetting permissions)
+    # Ensure all shell scripts stay executable by the owner
     for _sh in SCRIPT_DIR.glob("*.sh"):
-        _sh.chmod(_sh.stat().st_mode | 0o111)
+        _sh.chmod(_sh.stat().st_mode | 0o100)
 
-    # Run auto-update check (only if enabled in config)
-    if AUTO_UPDATE:
-        _update_script = SCRIPT_DIR / "Update.sh"
-        if _update_script.is_file():
-            try:
-                subprocess.run(
-                    [str(_update_script)],
-                    cwd=str(SCRIPT_DIR),
-                    timeout=60,
-                    capture_output=True,
-                )
-            except Exception:
-                pass  # Update failure should never prevent the bot from running
+    # Self-heal the environment (directories, venv, dependencies, permissions).
+    # A heal failure must never prevent the bot from running.
+    _install_script = SCRIPT_DIR / "install.sh"
+    if _install_script.is_file():
+        try:
+            subprocess.run(
+                [str(_install_script), "--heal"],
+                cwd=str(SCRIPT_DIR),
+                timeout=120,
+                capture_output=True,
+            )
+        except Exception:
+            pass
 
-    logger.info("=== Bot run started ===")
+    logger.info("=== Bot run started (v%s) ===", BOT_VERSION)
 
     # Validate configuration
     if not BOT_TOKEN:
@@ -896,6 +1079,24 @@ def main() -> None:
 
     # Create database backup
     backup_database()
+
+    # --- Updates ---
+    # Read pending group messages: queued /update commands (owner/admin only)
+    # and leftover pin-notification service messages.
+    update_requested = handle_telegram_updates()
+
+    if UPDATE_MODE == "auto":
+        # Legacy behavior: apply updates automatically on every run
+        run_update_script("--auto")
+    elif update_requested:
+        send_message(
+            "🔄 <b>Update requested</b> — applying now...\n"
+            "<i>Changes take effect on the bot's next scheduled run.</i>"
+        )
+        run_update_script("--from-telegram")
+    else:
+        # Manual mode: announce new versions once, let the admin decide
+        check_update_available()
 
     # Fetch data from APIs
     pool_data = fetch_pool_data()
