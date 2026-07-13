@@ -6,7 +6,7 @@ hashrate history, session tracking, and hall of fame.
 
 import json
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).parent
@@ -40,7 +40,8 @@ def init_db() -> None:
                 last_hashrate REAL DEFAULT 0,
                 last_start_time TEXT,
                 last_best_diff REAL DEFAULT 0,
-                last_seen TEXT
+                last_seen TEXT,
+                active INTEGER NOT NULL DEFAULT 1
             );
 
             CREATE TABLE IF NOT EXISTS hashrate_history (
@@ -82,6 +83,15 @@ def init_db() -> None:
                 detected_at TEXT NOT NULL
             );
         """)
+
+        # Migration: databases created before the "inactive workers" feature
+        # lack the active column.
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(workers)")}
+        if "active" not in columns:
+            conn.execute(
+                "ALTER TABLE workers ADD COLUMN active INTEGER NOT NULL DEFAULT 1"
+            )
+
         conn.commit()
     finally:
         conn.close()
@@ -142,6 +152,29 @@ def get_all_workers() -> list[dict]:
         conn.close()
 
 
+def get_active_workers() -> list[dict]:
+    """Get all registered workers that are still actively tracked."""
+    conn = _get_connection()
+    try:
+        rows = conn.execute("SELECT * FROM workers WHERE active = 1").fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def set_worker_active(internal_id: str, active: bool) -> None:
+    """Mark a worker as actively tracked or paused (history is preserved)."""
+    conn = _get_connection()
+    try:
+        conn.execute(
+            "UPDATE workers SET active = ? WHERE internal_id = ?",
+            (1 if active else 0, internal_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def upsert_worker(
     internal_id: str,
     api_name: str,
@@ -196,12 +229,14 @@ def resolve_worker_id(
     Map an API worker to an internal ID.
 
     For unique API names (only one worker with that name in the current API
-    response), the internal_id equals the api_name.
+    response, and never tracked under suffixed IDs), the internal_id equals
+    the api_name.
 
     For duplicate API names (multiple workers with the same name, e.g. all
     named "worker"), the bot assigns incremental IDs: worker_1, worker_2, etc.
     Re-identification is attempted by matching session_id first, then by
-    similar hashrate (±50%).
+    similar hashrate (±50%). Once suffixed IDs exist for an api_name, workers
+    keep resolving against them even if only one is currently online.
 
     ``claimed_ids`` tracks IDs already assigned in the current batch to
     prevent two API workers from resolving to the same internal ID.
@@ -217,17 +252,24 @@ def resolve_worker_id(
         if (w.get("name") if isinstance(w.get("name"), str) else "Unknown") == api_name
     )
 
-    # If this api_name is unique in the current batch, use it directly
-    if same_name_count <= 1:
-        return api_name
-
-    # Duplicate name scenario: try to match to an existing known worker
     conn = _get_connection()
     try:
         known = conn.execute(
             "SELECT * FROM workers WHERE api_name = ? ORDER BY internal_id",
             (api_name,),
         ).fetchall()
+
+        # Workers registered under suffixed IDs (assigned while several miners
+        # shared this api_name). If any exist, keep resolving against them even
+        # when the name is unique in the current batch — otherwise a miner
+        # would get a brand-new bare ID whenever its same-named siblings are
+        # temporarily offline, splitting its identity and history.
+        has_suffixed = any(r["internal_id"] != api_name for r in known)
+
+        # If this api_name is unique in the current batch and was never
+        # tracked under suffixed IDs, use it directly
+        if same_name_count <= 1 and not has_suffixed:
+            return api_name
 
         # Try match by session_id (skip already-claimed IDs)
         for row in known:
@@ -289,14 +331,18 @@ def add_hashrate_sample(worker_id: str, hashrate: float) -> None:
 
 def get_avg_hashrate(worker_id: str, hours: int = 24) -> float | None:
     """Calculate average hashrate over the last N hours. Returns None if no data."""
+    # The cutoff must be built in Python: samples are stored as
+    # datetime.isoformat() ("...T...+00:00") and SQLite's datetime('now')
+    # uses a space separator, which breaks lexicographic comparison.
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
     conn = _get_connection()
     try:
         row = conn.execute(
             """SELECT AVG(hashrate) as avg_hr, COUNT(*) as cnt
             FROM hashrate_history
             WHERE worker_id = ?
-              AND timestamp >= datetime('now', ? || ' hours')""",
-            (worker_id, f"-{hours}"),
+              AND timestamp >= ?""",
+            (worker_id, cutoff),
         ).fetchone()
         if row and row["cnt"] > 0:
             return row["avg_hr"]
@@ -527,11 +573,13 @@ def delete_worker(internal_id: str) -> None:
 
 def purge_old_data(days: int) -> int:
     """Delete hashrate history older than N days. Returns rows deleted."""
+    # Cutoff built in Python for the same reason as get_avg_hashrate().
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     conn = _get_connection()
     try:
         cursor = conn.execute(
-            "DELETE FROM hashrate_history WHERE timestamp < datetime('now', ? || ' days')",
-            (f"-{days}",),
+            "DELETE FROM hashrate_history WHERE timestamp < ?",
+            (cutoff,),
         )
         conn.commit()
         return cursor.rowcount

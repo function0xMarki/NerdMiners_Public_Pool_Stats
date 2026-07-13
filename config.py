@@ -73,7 +73,7 @@ DATA_RETENTION_DAYS = 90
 
 # Number of days to keep database backups.
 # Older backups are automatically deleted on each run.
-BACKUP_RETENTION_DAYS = 7
+BACKUP_RETENTION_DAYS = 30
 
 # ===========================================================================
 # WORKER NAME SUBSTITUTIONS
@@ -102,4 +102,4 @@ NAME_SUBSTITUTIONS = '{"nerdoctaxe": "NerdMiner Octaxe Gamma", "worker": "NerdMi
 # - INFO:    Normal operations + warnings + errors
 # - WARNING: Only important events and errors (default, recommended)
 # - ERROR:   Only errors
-LOG_LEVEL = "DEBUG"
+LOG_LEVEL = "WARNING"

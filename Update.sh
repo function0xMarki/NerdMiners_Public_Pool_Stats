@@ -140,7 +140,9 @@ cleanup() {
 
 # Clean stale lock (older than 5 minutes)
 if [ -f "$LOCK_FILE" ]; then
-    LOCK_AGE=$(( $(date +%s) - $(stat -c %Y "$LOCK_FILE" 2>/dev/null || echo "0") ))
+    # stat -c is GNU (Linux), stat -f %m is BSD (macOS)
+    LOCK_MTIME=$(stat -c %Y "$LOCK_FILE" 2>/dev/null || stat -f %m "$LOCK_FILE" 2>/dev/null || echo "0")
+    LOCK_AGE=$(( $(date +%s) - LOCK_MTIME ))
     if [ "$LOCK_AGE" -gt 300 ]; then
         log "Removing stale lock file (age: ${LOCK_AGE}s)"
         rm -f "$LOCK_FILE"

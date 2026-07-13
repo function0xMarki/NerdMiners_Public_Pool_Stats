@@ -435,15 +435,33 @@ def check_alerts(identified_workers: dict[str, dict], pool_stats: dict | None) -
     Returns a list of alert message strings (HTML formatted).
     """
     alerts = []
-    known_workers = {w["internal_id"] for w in db.get_all_workers()}
+    known_workers = {w["internal_id"] for w in db.get_active_workers()}
     current_ids = set(identified_workers.keys())
 
-    # --- New miner detected ---
-    if known_workers:
-        for new_id in current_ids - known_workers:
-            w = identified_workers[new_id]
-            display = get_display_name(new_id)
-            hr = _safe_float(w.get("hashRate"))
+    # Workers whose tracking was resumed in this run; their session-change
+    # alert is suppressed because the comeback alert already covers it.
+    reactivated_ids: set[str] = set()
+
+    # --- New miner detected / returning miner ---
+    for new_id in current_ids - known_workers:
+        w = identified_workers[new_id]
+        display = get_display_name(new_id)
+        hr = _safe_float(w.get("hashRate"))
+        existing = db.get_worker(new_id)
+
+        if existing and not existing.get("active", 1):
+            # Known worker whose tracking was paused after disappearing
+            db.set_worker_active(new_id, True)
+            db.set_state(f"disappeared_count_{new_id}", "0")
+            reactivated_ids.add(new_id)
+            alerts.append(
+                f"🔁 <b>MINER BACK ONLINE</b>\n"
+                f"Miner: <b>{display}</b> ({html_escape(new_id)})\n"
+                f"Hashrate: {format_hashrate(hr)}\n"
+                f"<i>Tracking resumed — history and records were preserved.</i>"
+            )
+            logger.warning("Worker '%s' reappeared, tracking resumed", new_id)
+        elif known_workers:
             alerts.append(
                 f"🆕 <b>NEW MINER DETECTED</b>\n"
                 f"Miner: <b>{display}</b> ({html_escape(new_id)})\n"
@@ -466,16 +484,18 @@ def check_alerts(identified_workers: dict[str, dict], pool_stats: dict | None) -
                     f"No longer visible in the pool"
                 )
             else:
-                # Final notice — purge all traces so this ghost never triggers again
+                # Final notice — pause tracking, keeping all history and records
                 alerts.append(
                     f"⚠️ <b>MINER DISAPPEARED</b>\n"
                     f"Miner: <b>{display}</b> ({html_escape(missing_id)})\n"
                     f"No longer visible in the pool\n"
-                    f"<i>This is the final notice. The miner has been removed from the "
-                    f"registry and will no longer be tracked.</i>"
+                    f"<i>This is the final notice. Tracking is paused; its history "
+                    f"and records are preserved, and tracking will resume "
+                    f"automatically if it reappears.</i>"
                 )
-                db.delete_worker(missing_id)
-                logger.warning("Worker '%s' removed from registry after %d disappeared alerts", missing_id, count)
+                db.set_worker_active(missing_id, False)
+                db.set_state(count_key, "0")
+                logger.warning("Worker '%s' tracking paused after %d disappeared alerts", missing_id, count)
 
     # --- Per-worker checks ---
     for internal_id, w_data in identified_workers.items():
@@ -489,6 +509,16 @@ def check_alerts(identified_workers: dict[str, dict], pool_stats: dict | None) -
 
         saved_worker = db.get_worker(internal_id)
 
+        # All-time best captured BEFORE the upsert below writes the current
+        # best_diff into the DB; otherwise a new record could never exceed it
+        prev_all_time = db.get_all_time_best(internal_id)
+
+        # Worker is present — clear any pending disappeared strikes so a past
+        # blip doesn't fast-track a future disappearance to the final notice
+        count_key = f"disappeared_count_{internal_id}"
+        if (db.get_state(count_key, "0") or "0") != "0":
+            db.set_state(count_key, "0")
+
         # Ensure worker exists in DB before any FK-dependent operations
         db.upsert_worker(
             internal_id=internal_id,
@@ -499,6 +529,10 @@ def check_alerts(identified_workers: dict[str, dict], pool_stats: dict | None) -
             best_diff=w_best_diff,
             last_seen=last_seen,
         )
+
+        # 24h average taken before recording the current sample, so the value
+        # being checked doesn't drag down its own baseline
+        avg_24h = db.get_avg_hashrate(internal_id, hours=24)
 
         # Record hashrate sample
         db.add_hashrate_sample(internal_id, hashrate)
@@ -542,13 +576,14 @@ def check_alerts(identified_workers: dict[str, dict], pool_stats: dict | None) -
                 except (ValueError, TypeError):
                     pass
 
-                alerts.append(
-                    f"⚠️ <b>DISCONNECTION DETECTED</b>\n"
-                    f"Miner: <b>{display}</b>\n"
-                    f"Previous session: {prev_duration}\n"
-                    f"Estimated downtime: {downtime_str}\n"
-                    f"Reconnected at: {new_start_fmt}"
-                )
+                if internal_id not in reactivated_ids:
+                    alerts.append(
+                        f"⚠️ <b>DISCONNECTION DETECTED</b>\n"
+                        f"Miner: <b>{display}</b>\n"
+                        f"Previous session: {prev_duration}\n"
+                        f"Estimated downtime: {downtime_str}\n"
+                        f"Reconnected at: {new_start_fmt}"
+                    )
 
                 # Open new session
                 db.open_session(internal_id, session_id, start_time)
@@ -572,7 +607,6 @@ def check_alerts(identified_workers: dict[str, dict], pool_stats: dict | None) -
             )
 
         # --- Hashrate drop (vs 24h average) ---
-        avg_24h = db.get_avg_hashrate(internal_id, hours=24)
         if avg_24h and avg_24h > 0 and hashrate > 0:
             drop = ((avg_24h - hashrate) / avg_24h) * 100
             strikes_key = f"low_hashrate_strikes_{internal_id}"
@@ -622,14 +656,13 @@ def check_alerts(identified_workers: dict[str, dict], pool_stats: dict | None) -
         if saved_worker:
             saved_best = saved_worker["last_best_diff"] or 0
             if w_best_diff > saved_best and saved_best > 0:
-                all_time = db.get_all_time_best(internal_id)
-                is_all_time = w_best_diff > all_time
+                is_all_time = w_best_diff > prev_all_time
 
                 if is_all_time or NOTIFY_SESSION_BD_RECORD:
                     msg = (
                         f"🌟 <b>NEW PERSONAL RECORD!</b>\n"
                         f"Miner: <b>{display}</b>\n"
-                        f"Session Best Difficylty: {format_difficulty(w_best_diff)}\n"
+                        f"Session Best Difficulty: {format_difficulty(w_best_diff)}\n"
                         f"Previous: {format_difficulty(saved_best)}"
                     )
                     if is_all_time:
@@ -644,6 +677,11 @@ def check_alerts(identified_workers: dict[str, dict], pool_stats: dict | None) -
         current_blocks = pool_stats.get("blocksFound") or []
         if current_blocks:
             known_heights = db.get_known_pool_block_heights()
+            # On a brand-new database, record the pool's historical blocks
+            # without alerting: they were found before the bot started
+            seeding = (
+                not known_heights and db.get_state("pool_blocks_seeded") is None
+            )
             for block in current_blocks:
                 if not isinstance(block, dict):
                     continue
@@ -651,6 +689,8 @@ def check_alerts(identified_workers: dict[str, dict], pool_stats: dict | None) -
                 if height is None or height in known_heights:
                     continue
                 db.save_pool_block(block)
+                if seeding:
+                    continue
                 miner_address = block.get("minerAddress", "")
                 worker_name = block.get("worker", "")
 
@@ -668,6 +708,8 @@ def check_alerts(identified_workers: dict[str, dict], pool_stats: dict | None) -
                         f"Block: #{height}\n"
                         f"Unfortunately it was not one of your miners."
                     )
+            if db.get_state("pool_blocks_seeded") is None:
+                db.set_state("pool_blocks_seeded", "1")
 
     return alerts
 

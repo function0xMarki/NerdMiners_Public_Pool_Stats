@@ -203,7 +203,8 @@ Los ajustes configurables están en `config.py`:
 | LOW HASHRATE | El hashrate cayó más de `HASHRATE_DROP_PERCENT`% por debajo de la media de 24h durante `HASHRATE_ALERT_STRIKES` ejecuciones consecutivas. Cooldown de `HASHRATE_ALERT_COOLDOWN_HOURS`h entre alertas; se reinicia al recuperarse |
 | NEW PERSONAL RECORD | El minero superó su **mejor dificultad histórica** *(por defecto)*. Establece `NOTIFY_SESSION_BD_RECORD = True` para alertar también en récords de sesión que no superen el histórico |
 | NEW MINER DETECTED | Apareció un minero previamente desconocido |
-| MINER DISAPPEARED | Un minero conocido ya no es visible en el pool |
+| MINER DISAPPEARED | Un minero conocido ya no es visible en el pool. Tras 2 avisos, se pausa su seguimiento *(el historial y los récords se conservan)* |
+| MINER BACK ONLINE | Un minero pausado reaparece en el pool. El seguimiento se reanuda automáticamente con todo su historial intacto |
 | YOUR MINER FOUND A BLOCK | Uno de TUS mineros encontró un bloque de Bitcoin *(identificado por tu BTC_ADDRESS)* |
 | BLOCK FOUND BY THE POOL | Otro minero en public-pool.io encontró un bloque de Bitcoin |
 

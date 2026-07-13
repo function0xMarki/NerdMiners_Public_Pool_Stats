@@ -191,16 +191,17 @@ echo "  To run the bot manually:"
 echo "  $SCRIPT_DIR/venv/bin/python $SCRIPT_DIR/NerdMiners_Bot.py"
 echo ""
 
-CRON_LINE="# NerdMiners_Public_Pool_Stats_Bot\n*/30 * * * * $SCRIPT_DIR/venv/bin/python $SCRIPT_DIR/NerdMiners_Bot.py\n"
+CRON_COMMENT="# NerdMiners_Public_Pool_Stats_Bot"
+CRON_JOB="*/30 * * * * $SCRIPT_DIR/venv/bin/python $SCRIPT_DIR/NerdMiners_Bot.py"
 
-# Check if cron job already exists
-if crontab -l 2>/dev/null | grep -qF "$SCRIPT_DIR/NerdMiners_Bot.py"; then
+# Check if cron job already exists (as a real entry, not a commented-out line)
+if crontab -l 2>/dev/null | grep -v '^[[:space:]]*#' | grep -qF "$SCRIPT_DIR/NerdMiners_Bot.py"; then
     echo -e "  ${GREEN}✓${NC} Cron job already configured."
     echo ""
 else
     echo -e "  ${YELLOW}NEXT STEP:${NC} Set up automatic execution every 30 minutes."
     echo -e "  > Copy and paste ${RED}the next FULL GREEN COMMAND${NC} to add the cron job automatically:"
-    echo -e "    ${GREEN}(crontab -l 2>/dev/null; echo \"$CRON_LINE\") | crontab -${NC}"
+    echo -e "    ${GREEN}(crontab -l 2>/dev/null; echo \"$CRON_COMMENT\"; echo \"$CRON_JOB\") | crontab -${NC}"
     echo ""
     echo -e "> Use ${GREEN}crontab -l${NC} to verify the cron job was added successfully."
     echo ""

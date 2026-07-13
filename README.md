@@ -202,7 +202,8 @@ Tunable settings are in `config.py`:
 | LOW HASHRATE | Hashrate dropped more than `HASHRATE_DROP_PERCENT`% below the 24h average for `HASHRATE_ALERT_STRIKES` consecutive runs. Cooldown of `HASHRATE_ALERT_COOLDOWN_HOURS`h between alerts; resets on recovery |
 | NEW PERSONAL RECORD | Miner beat their **all-time** best difficulty *(default)*. Set `NOTIFY_SESSION_BD_RECORD = True` to also alert on session bests that don't beat the all-time record |
 | NEW MINER DETECTED | A previously unknown miner appeared |
-| MINER DISAPPEARED | A known miner is no longer visible in the pool |
+| MINER DISAPPEARED | A known miner is no longer visible in the pool. After 2 alerts, tracking is paused *(history and records are preserved)* |
+| MINER BACK ONLINE | A paused miner reappeared in the pool. Tracking resumes automatically with all its history intact |
 | YOUR MINER FOUND A BLOCK | One of YOUR miners found a Bitcoin block *(matched by your BTC_ADDRESS)* |
 | BLOCK FOUND BY THE POOL | Another miner on public-pool.io found a Bitcoin block |
 
