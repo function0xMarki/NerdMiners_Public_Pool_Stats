@@ -58,6 +58,11 @@ NOTIFY_SESSION_BD_RECORD = False
 # The bot stores up to 10 entries internally; values above 10 are capped to 10.
 SHOW_TOP_BD = 5
 
+# Number of days used to calculate the per-miner uptime percentage shown in
+# the stats message. For miners younger than this, the window starts when
+# the miner was first seen. Uses the session history, which is never purged.
+UPTIME_WINDOW_DAYS = 365
+
 # ===========================================================================
 # MESSAGE MANAGEMENT
 # ===========================================================================

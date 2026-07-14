@@ -34,13 +34,15 @@ from config import (
     OFFLINE_TIMEOUT_MINUTES,
     SHOW_TOP_BD,
     UPDATE_MODE,
+    UPTIME_WINDOW_DAYS,
 )
 
 # Load environment variables
 load_dotenv()
 
 # New files (DB, WAL journals, logs, backups) must be readable only by the
-# user running the bot: they contain chat IDs, tokens paths and mining data.
+# user running the bot: they contain chat IDs, token-bearing URLs (in error
+# logs) and mining data.
 os.umask(0o077)
 
 # Worker name substitutions (JSON string from config.py)
@@ -208,78 +210,98 @@ def check_worker_offline(last_seen: str | None) -> bool:
 # Telegram helpers
 # ===========================================================================
 
+def _telegram_post(method: str, data: dict | None = None) -> dict | None:
+    """POST to the Telegram Bot API, retrying on 429 rate limits.
+
+    Returns the parsed JSON response (which may have ok=False), or None on
+    network/JSON failure. Retries at most twice, honoring retry_after.
+    """
+    for attempt in range(3):
+        try:
+            resp = requests.post(f"{TELEGRAM_API}/{method}", json=data, timeout=30)
+            result = resp.json()
+        except (requests.RequestException, ValueError) as e:
+            logger.error("Telegram request failed (%s): %s", method, e)
+            return None
+        if (
+            not result.get("ok")
+            and result.get("error_code") == 429
+            and attempt < 2
+        ):
+            retry_after = (result.get("parameters") or {}).get("retry_after", 1)
+            wait = min(_safe_float(retry_after, 1.0), 30.0)
+            logger.warning(
+                "Telegram rate limit on %s, retrying in %.0fs", method, wait
+            )
+            time.sleep(wait)
+            continue
+        return result
+    return None
+
+
 def telegram_request(method: str, data: dict | None = None) -> dict | None:
     """Make a request to the Telegram Bot API."""
-    try:
-        resp = requests.post(f"{TELEGRAM_API}/{method}", json=data, timeout=30)
-        result = resp.json()
-        if not result.get("ok"):
-            logger.error("Telegram API error on %s: %s", method, result)
-            return None
-        return result.get("result")
-    except requests.RequestException as e:
-        logger.error("Telegram request failed (%s): %s", method, e)
+    result = _telegram_post(method, data)
+    if result is None:
         return None
+    if not result.get("ok"):
+        logger.error("Telegram API error on %s: %s", method, result)
+        return None
+    return result.get("result")
 
 
-def send_message(text: str, parse_mode: str = "HTML") -> dict | None:
+def send_message(
+    text: str, parse_mode: str = "HTML", reply_markup: dict | None = None
+) -> dict | None:
     """Send a message to the configured group."""
-    return telegram_request("sendMessage", {
+    payload = {
         "chat_id": CHAT_ID,
         "text": text,
         "parse_mode": parse_mode,
-    })
+    }
+    if reply_markup is not None:
+        payload["reply_markup"] = reply_markup
+    return telegram_request("sendMessage", payload)
 
 
 def edit_message(message_id: int, text: str, parse_mode: str = "HTML") -> dict | None:
     """Edit an existing message. Returns sentinel on 'not modified' (no-op)."""
-    try:
-        resp = requests.post(
-            f"{TELEGRAM_API}/editMessageText",
-            json={
-                "chat_id": CHAT_ID,
-                "message_id": message_id,
-                "text": text,
-                "parse_mode": parse_mode,
-            },
-            timeout=30,
-        )
-        result = resp.json()
-        if result.get("ok"):
-            return result.get("result")
-        desc = result.get("description", "")
-        # Content unchanged is not an error - treat as success
-        if "message is not modified" in desc:
-            logger.debug("Message %s unchanged, skipping edit", message_id)
-            return {"message_id": message_id}
-        logger.error("Telegram API error on editMessageText: %s", result)
+    result = _telegram_post("editMessageText", {
+        "chat_id": CHAT_ID,
+        "message_id": message_id,
+        "text": text,
+        "parse_mode": parse_mode,
+    })
+    if result is None:
         return None
-    except requests.RequestException as e:
-        logger.error("Telegram request failed (editMessageText): %s", e)
-        return None
+    if result.get("ok"):
+        return result.get("result")
+    desc = result.get("description", "")
+    # Content unchanged is not an error - treat as success
+    if "message is not modified" in desc:
+        logger.debug("Message %s unchanged, skipping edit", message_id)
+        return {"message_id": message_id}
+    logger.error("Telegram API error on editMessageText: %s", result)
+    return None
 
 
 def delete_message(message_id: int) -> bool:
     """Delete a message. Returns True even if the message was already gone."""
-    try:
-        resp = requests.post(
-            f"{TELEGRAM_API}/deleteMessage",
-            json={"chat_id": CHAT_ID, "message_id": message_id},
-            timeout=30,
-        )
-        result = resp.json()
-        if result.get("ok"):
-            return True
-        # "message to delete not found" is expected (already deleted / >48h old)
-        desc = result.get("description", "")
-        if "message to delete not found" in desc:
-            logger.debug("Message %s already deleted, ignoring", message_id)
-            return True
-        logger.error("Telegram API error on deleteMessage: %s", result)
+    result = _telegram_post("deleteMessage", {
+        "chat_id": CHAT_ID,
+        "message_id": message_id,
+    })
+    if result is None:
         return False
-    except requests.RequestException as e:
-        logger.error("Telegram request failed (deleteMessage): %s", e)
-        return False
+    if result.get("ok"):
+        return True
+    # "message to delete not found" is expected (already deleted / >48h old)
+    desc = result.get("description", "")
+    if "message to delete not found" in desc:
+        logger.debug("Message %s already deleted, ignoring", message_id)
+        return True
+    logger.error("Telegram API error on deleteMessage: %s", result)
+    return False
 
 
 def _delete_service_messages() -> None:
@@ -346,14 +368,34 @@ def _is_group_admin(user_id) -> bool:
     return member.get("status") in ("creator", "administrator")
 
 
+def _answer_callback(callback_id: str | None, text: str) -> None:
+    """Answer a callback query, best-effort.
+
+    Failures are ignored silently: since the bot runs on a schedule, the
+    button press is usually answered many minutes later, when Telegram has
+    already expired the query — that is expected, not an error.
+    """
+    if not callback_id:
+        return
+    try:
+        requests.post(
+            f"{TELEGRAM_API}/answerCallbackQuery",
+            json={"callback_query_id": callback_id, "text": text},
+            timeout=10,
+        )
+    except requests.RequestException:
+        pass
+
+
 def handle_telegram_updates() -> bool:
     """Process pending Telegram updates for the configured group.
 
-    Only the /update command is acted upon; every other message or command is
-    ignored. Pending pin-notification service messages are deleted along the
-    way. Any number of queued /update messages triggers a single update run.
+    Only the /update command and the "Apply update" button are acted upon;
+    every other message or command is ignored. Pending pin-notification
+    service messages are deleted along the way. Any number of queued
+    /update messages or button presses triggers a single update run.
 
-    Returns True when an authorized /update (group owner/admin) was received.
+    Returns True when an authorized request (group owner/admin) was received.
     """
     try:
         resp = requests.post(
@@ -369,6 +411,42 @@ def handle_telegram_updates() -> bool:
     denied_notice_sent = False
 
     for update in updates:
+        # --- "Apply update" inline button presses ---
+        cq = update.get("callback_query") or {}
+        if cq:
+            cq_msg = cq.get("message") or {}
+            cq_chat = cq_msg.get("chat") or {}
+            if (
+                str(cq_chat.get("id")) != str(CHAT_ID)
+                or cq.get("data") != "apply_update"
+            ):
+                continue
+            from_user = cq.get("from") or {}
+            if _is_group_admin(from_user.get("id")):
+                update_requested = True
+                # Remove the button so the notification shows it was handled
+                _telegram_post("editMessageReplyMarkup", {
+                    "chat_id": CHAT_ID,
+                    "message_id": cq_msg.get("message_id"),
+                    "reply_markup": {"inline_keyboard": []},
+                })
+                _answer_callback(
+                    cq.get("id"),
+                    "Update queued ✓ It will be applied on the bot's next run.",
+                )
+                logger.warning(
+                    "Apply-update button pressed by %s",
+                    from_user.get("username") or from_user.get("id"),
+                )
+            else:
+                _answer_callback(
+                    cq.get("id"), "Only group admins can apply updates."
+                )
+                logger.warning(
+                    "Apply-update button denied for user %s", from_user.get("id")
+                )
+            continue
+
         msg = update.get("message") or {}
         chat = msg.get("chat") or {}
         if str(chat.get("id")) != str(CHAT_ID):
@@ -488,10 +566,16 @@ def check_update_available() -> None:
         f"📦 <b>v{html_escape(BOT_VERSION)}  →  v{html_escape(remote_version)}</b>\n\n"
         f"🧾 <b>{len(commit_list)} new commit(s):</b>\n{commit_lines}\n\n"
         f"To apply it, either:\n"
-        f"  • Send /update in this group <i>(group owner/admin only)</i>. "
-        f"The command stays queued and the update will run on the bot's next "
-        f"scheduled start (within ~30 min).\n"
-        f"  • Or run <code>update.sh</code> on the server to apply it immediately."
+        f"  • Tap the button below or send /update in this group "
+        f"<i>(group owner/admin only)</i>. The command stays queued and "
+        f"the update will run on the bot's next scheduled start "
+        f"(within ~30 min).\n"
+        f"  • Or run <code>update.sh</code> on the server to apply it immediately.",
+        reply_markup={
+            "inline_keyboard": [[
+                {"text": "✅ Apply update", "callback_data": "apply_update"}
+            ]]
+        },
     )
     db.set_state("update_notified_hash", remote)
     logger.warning(
@@ -778,13 +862,19 @@ def check_alerts(identified_workers: dict[str, dict], pool_stats: dict | None) -
             if start_time:
                 db.open_session(internal_id, session_id, start_time)
 
-        # --- Worker offline ---
+        # --- Worker offline (a single notice per outage, reset on recovery) ---
+        offline_key = f"offline_alerted_{internal_id}"
         if check_worker_offline(last_seen):
-            alerts.append(
-                f"🔴 <b>MINER OFFLINE</b>\n"
-                f"Miner: <b>{display}</b>\n"
-                f"No activity for more than {OFFLINE_TIMEOUT_MINUTES} minutes"
-            )
+            if (db.get_state(offline_key, "0") or "0") != "1":
+                db.set_state(offline_key, "1")
+                alerts.append(
+                    f"🔴 <b>MINER OFFLINE</b>\n"
+                    f"Miner: <b>{display}</b>\n"
+                    f"No activity for more than {OFFLINE_TIMEOUT_MINUTES} minutes\n"
+                    f"<i>No more reminders will be sent until it comes back online.</i>"
+                )
+        elif (db.get_state(offline_key, "0") or "0") != "0":
+            db.set_state(offline_key, "0")
 
         # --- Hashrate drop (vs 24h average) ---
         if avg_24h and avg_24h > 0 and hashrate > 0:
@@ -915,17 +1005,11 @@ def build_stats_message(
     # All-time best across all workers
     global_best = 0.0
     global_best_worker = ""
-    global_best_date = ""
     hof = db.get_hall_of_fame(limit=1)
     if hof:
         entry = hof[0]
         global_best = entry["difficulty"]
         global_best_worker = get_display_name(entry["worker_id"])
-        try:
-            dt = datetime.fromisoformat(entry["achieved_at"].replace("Z", "+00:00"))
-            global_best_date = dt.strftime("%b %d, %Y")
-        except (ValueError, TypeError):
-            global_best_date = ""
 
     # Total 24h average
     total_avg = 0.0
@@ -996,6 +1080,7 @@ def build_stats_message(
         all_time_best = db.get_all_time_best(internal_id)
         all_time_best = max(all_time_best, session_best)
         avg_hr = db.get_avg_hashrate(internal_id, hours=24)
+        uptime_pct = db.get_uptime_percent(internal_id, days=UPTIME_WINDOW_DAYS)
 
         hr_line = f"   ⚡ <b>Hashrate</b>: {format_hashrate(hashrate)}"
         if avg_hr and avg_hr > 0:
@@ -1010,8 +1095,12 @@ def build_stats_message(
             hr_line,
             diff_line,
             f"   ⏱️ <b>Current Session Uptime</b>: {uptime}",
-            "",
         ]
+        if uptime_pct is not None:
+            lines.append(
+                f"   📊 <b>Uptime {UPTIME_WINDOW_DAYS}d</b>: {uptime_pct:.1f}%"
+            )
+        lines.append("")
 
     # TOP N BD
     _top_bd = min(max(int(SHOW_TOP_BD), 1), 10)
@@ -1158,6 +1247,14 @@ def main() -> None:
         result = edit_message(message_id, stats_message)
         if result:
             logger.info("Stats message edited (id=%s)", message_id)
+            # Watchdog: if the group has no pinned message at all (someone
+            # unpinned it by hand), pin the stats message again. If another
+            # message is pinned we leave it alone (multi-pin is allowed and
+            # we don't want to fight the user's own pins).
+            chat_info = telegram_request("getChat", {"chat_id": CHAT_ID})
+            if chat_info is not None and not chat_info.get("pinned_message"):
+                pin_message(message_id)
+                logger.warning("Stats message was unpinned externally; pinned it again")
         else:
             # Edit failed, send new message
             logger.warning("Could not edit message %s, sending new one", message_id)

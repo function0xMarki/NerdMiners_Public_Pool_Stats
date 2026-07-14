@@ -7,7 +7,7 @@ Bot de Telegram que monitoriza tus NerdMiners de Bitcoin en Public-Pool y envía
 
 <div align="center">
   
-![Version](https://img.shields.io/badge/Version-1.1.0-blue.svg)
+![Version](https://img.shields.io/badge/Version-2.1.1-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 ![pip](https://img.shields.io/badge/Python-pip-green.svg)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -25,8 +25,9 @@ Bot de Telegram que monitoriza tus NerdMiners de Bitcoin en Public-Pool y envía
 - **Identificación de workers**: Gestiona automáticamente múltiples mineros con el mismo nombre en la API *(ej: los NerdMiners antiguos que todos reportan como "worker" sin posibilidad de personalizarse)*
 - **Almacenamiento SQLite**: Historial eficiente de 90 días para promedios de hashrate y seguimiento de sesiones *(modo WAL para fiabilidad)*
 - **Backups automáticos**: Copias de seguridad de la base de datos cada 24 h con retención de 30 días
-- **Actualizaciones manuales desde Telegram**: El bot anuncia las nuevas versiones en el grupo; el propietario o un administrador del grupo las aplica con el comando `/update` *(o ejecutando `update.sh` en el servidor)*
+- **Actualizaciones manuales desde Telegram**: El bot anuncia las nuevas versiones en el grupo; el propietario o un administrador del grupo las aplica con un toque en el botón **Aplicar actualización**, con el comando `/update`, o ejecutando `update.sh` en el servidor
 - **Entorno auto-reparable**: En cada ejecución el bot verifica y repara su propio entorno *(directorios que falten, venv dañado, dependencias ausentes, permisos de archivos inseguros)*
+- **Seguimiento de uptime**: Porcentaje de uptime por minero de los últimos 365 días *(configurable)* en el mensaje de estadísticas
 
 <p align="center">
   <img width="251" height="460" alt="demo" src="https://github.com/user-attachments/assets/0e418066-41a3-420a-9a9b-d088cfc043d8" />
@@ -178,7 +179,7 @@ Los ajustes configurables están en `config.py`:
 
 | Ajuste | Descripción | Por defecto |
 |--------|-------------|-------------|
-| `UPDATE_MODE` | `"manual"`: el bot anuncia las nuevas versiones en Telegram y tú las aplicas con `/update` o `update.sh` *(ver [Actualizaciones](#actualizaciones))*. `"auto"`: las actualizaciones se aplican automáticamente en cada ejecución *(comportamiento antiguo)* | `"manual"` |
+| `UPDATE_MODE` | `"manual"`: el bot anuncia las nuevas versiones en Telegram y tú las aplicas con el botón **Apply update**, `/update` o `update.sh` *(ver [Actualizaciones](#actualizaciones))*. `"auto"`: las actualizaciones se aplican automáticamente en cada ejecución *(comportamiento antiguo)* | `"manual"` |
 | `API_BASE_URL` | URL base de la API. Preconfigurado para **public-pool.io**. Las instancias auto-alojadas usan una URL y puerto propios *(ej: `http://umbrel.local:3334/api`)*. Ver [public-pool auto-alojado](#public-pool-auto-alojado) más abajo | `https://public-pool.io:40557/api` |
 | `OFFLINE_TIMEOUT_MINUTES` | Minutos de inactividad para considerar un minero offline | `5` |
 | `HASHRATE_DROP_PERCENT` | Porcentaje de caída del hashrate vs media 24h para activar alerta | `30` |
@@ -186,6 +187,7 @@ Los ajustes configurables están en `config.py`:
 | `HASHRATE_ALERT_COOLDOWN_HOURS` | Horas antes de reenviar una alerta LOW HASHRATE para el mismo minero. Se reinicia automáticamente cuando el hashrate se recupera | `4` |
 | `NOTIFY_SESSION_BD_RECORD` | `False`: solo avisa cuando un minero supera su **mejor dificultad histórica**. `True`: avisa en cada nuevo récord de sesión, aunque no supere el récord histórico | `False` |
 | `SHOW_TOP_BD` | Top BD mostrados en Telegram | `5` |
+| `UPTIME_WINDOW_DAYS` | Días usados para calcular el porcentaje de uptime por minero mostrado en el mensaje de estadísticas *(usa el historial de sesiones, que nunca se purga)* | `365` |
 | `MESSAGE_EDIT_LIMIT_HOURS` | Horas antes de recrear el mensaje de estadísticas *(ver nota abajo)* | `45` |
 | `DATA_RETENTION_DAYS` | Días de retención del historial de hashrate en la base de datos | `90` |
 | `BACKUP_RETENTION_DAYS` | Días de retención de las copias de seguridad | `30` |
@@ -203,7 +205,7 @@ Los ajustes configurables están en `config.py`:
 | Alerta | Disparador |
 |--------|------------|
 | DISCONNECTION DETECTED | El ID de sesión del minero cambió *(nuevo `startTime`)*. Incluye duración de la sesión anterior, tiempo estimado de inactividad y hora de reconexión |
-| MINER OFFLINE | Sin actividad durante más de `OFFLINE_TIMEOUT_MINUTES` minutos |
+| MINER OFFLINE | Sin actividad durante más de `OFFLINE_TIMEOUT_MINUTES` minutos. Se envía **una sola vez por caída** — sin repeticiones hasta que el minero vuelva a estar online |
 | LOW HASHRATE | El hashrate cayó más de `HASHRATE_DROP_PERCENT`% por debajo de la media de 24h durante `HASHRATE_ALERT_STRIKES` ejecuciones consecutivas. Cooldown de `HASHRATE_ALERT_COOLDOWN_HOURS`h entre alertas; se reinicia al recuperarse |
 | NEW PERSONAL RECORD | El minero superó su **mejor dificultad histórica** *(por defecto)*. Establece `NOTIFY_SESSION_BD_RECORD = True` para alertar también en récords de sesión que no superen el histórico |
 | NEW MINER DETECTED | Apareció un minero previamente desconocido |
@@ -218,7 +220,7 @@ Las actualizaciones son **manuales por defecto** — tú decides cuándo entra e
 
 1. En cada ejecución, el bot comprueba el repositorio de GitHub. Cuando hay una nueva versión disponible, envía una única notificación al grupo *(una vez por versión, sin spam)* con la transición de versión, la lista de commits nuevos y cómo aplicarla.
 2. Para aplicar la actualización, elige lo que prefieras:
-   - **Desde Telegram**: envía `/update` en el grupo. Solo el **propietario del grupo o un administrador** puede usar este comando; a cualquier otro usuario se le rechaza educadamente. Como el bot se ejecuta de forma programada, el comando **queda en cola** y se ejecuta en el siguiente arranque programado del bot *(en un máximo de ~30 min con el cron recomendado)*. Enviar `/update` varias veces encola una **única** actualización.
+   - **Desde Telegram**: pulsa el botón **Aplicar actualización** de la notificación, o envía `/update` en el grupo. Solo el **propietario del grupo o un administrador** puede hacerlo; a cualquier otro usuario se le rechaza educadamente. Como el bot se ejecuta de forma programada, la petición **queda en cola** y se ejecuta en el siguiente arranque programado del bot *(en un máximo de ~30 min con el cron recomendado)* — el botón desaparece de la notificación cuando la petición se procesa. Pulsar el botón o enviar `/update` varias veces encola una **única** actualización.
    - **Desde el servidor**: ejecuta `./update.sh` en el directorio del bot para aplicarla al instante.
 3. Una vez aplicada, el bot lo confirma en el grupo con un mensaje bien formateado: transición de versión *(ej: `v1.1.0 → v1.2.0`)* y cada commit con su descripción. El código nuevo entra en vigor en la siguiente ejecución programada del bot.
 

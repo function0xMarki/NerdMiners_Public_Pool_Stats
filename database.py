@@ -414,6 +414,63 @@ def open_session(
         conn.close()
 
 
+def _parse_ts(value: str | None) -> datetime | None:
+    """Parse a stored/API timestamp into an aware UTC datetime, or None."""
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def get_uptime_percent(worker_id: str, days: int = 7) -> float | None:
+    """Percentage of time the worker had an active session in the last N days.
+
+    For workers younger than the window, the window starts at first_seen so
+    the percentage stays fair. Returns None when there is not enough data.
+    """
+    now = datetime.now(timezone.utc)
+    conn = _get_connection()
+    try:
+        worker = conn.execute(
+            "SELECT first_seen FROM workers WHERE internal_id = ?",
+            (worker_id,),
+        ).fetchone()
+        first_seen = _parse_ts(worker["first_seen"]) if worker else None
+        if first_seen is None:
+            return None
+
+        window_start = max(now - timedelta(days=days), first_seen)
+        window_seconds = (now - window_start).total_seconds()
+        if window_seconds < 60:
+            return None  # too little history to be meaningful
+
+        rows = conn.execute(
+            "SELECT start_time, end_time FROM sessions WHERE worker_id = ?",
+            (worker_id,),
+        ).fetchall()
+        if not rows:
+            return None
+
+        up = 0.0
+        for r in rows:
+            start = _parse_ts(r["start_time"])
+            if start is None:
+                continue
+            end = _parse_ts(r["end_time"]) or now
+            start = max(start, window_start)
+            end = min(end, now)
+            if end > start:
+                up += (end - start).total_seconds()
+        return min(up / window_seconds * 100.0, 100.0)
+    finally:
+        conn.close()
+
+
 def get_all_time_best(worker_id: str) -> float:
     """Get the best difficulty ever achieved by a worker across all sessions."""
     conn = _get_connection()
@@ -564,6 +621,7 @@ def delete_worker(internal_id: str) -> None:
             f"low_hashrate_strikes_{internal_id}",
             f"low_hashrate_alerted_at_{internal_id}",
             f"disappeared_count_{internal_id}",
+            f"offline_alerted_{internal_id}",
         ):
             conn.execute("DELETE FROM bot_state WHERE key = ?", (key,))
         conn.commit()

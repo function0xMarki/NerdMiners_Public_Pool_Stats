@@ -7,7 +7,7 @@ Telegram bot that monitors your Bitcoin NerdMiners on Public-Pool and sends stat
 
 <div align="center">
   
-![Version](https://img.shields.io/badge/Version-1.1.0-blue.svg)
+![Version](https://img.shields.io/badge/Version-2.1.1-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 ![pip](https://img.shields.io/badge/Python-pip-green.svg)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -25,8 +25,9 @@ Telegram bot that monitors your Bitcoin NerdMiners on Public-Pool and sends stat
 - **Worker identification**: Automatically handles multiple miners with the same API name *(e.g., old NerdMiners that all report as "worker" without customization options)*
 - **SQLite storage**: Efficient 90-day rolling history for hashrate averaging and session tracking *(WAL mode for reliability)*
 - **Automatic backups**: Database backups every 24 hours with 30-day retention
-- **Manual updates via Telegram**: The bot announces new versions in the group; the group owner/admin applies them with the `/update` command *(or by running `update.sh` on the server)*
+- **Manual updates via Telegram**: The bot announces new versions in the group; the group owner/admin applies them with one tap on the **Apply update** button, the `/update` command, or by running `update.sh` on the server
 - **Self-healing environment**: On every run the bot verifies and repairs its own environment *(missing directories, broken venv, missing dependencies, insecure file permissions)*
+- **Uptime tracking**: Per-miner uptime percentage over the last 365 days *(configurable)* shown in the stats message
 
 <p align="center">
   <img width="251" height="460" alt="demo" src="https://github.com/user-attachments/assets/0e418066-41a3-420a-9a9b-d088cfc043d8" />
@@ -178,7 +179,7 @@ Tunable settings are in `config.py`:
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `UPDATE_MODE` | `"manual"`: the bot announces new versions in Telegram and you apply them with `/update` or `update.sh` *(see [Updates](#updates))*. `"auto"`: updates are applied automatically on every run *(legacy behavior)* | `"manual"` |
+| `UPDATE_MODE` | `"manual"`: the bot announces new versions in Telegram and you apply them with the **Apply update** button, `/update` or `update.sh` *(see [Updates](#updates))*. `"auto"`: updates are applied automatically on every run *(legacy behavior)* | `"manual"` |
 | `API_BASE_URL` | API base URL. Pre-configured for **public-pool.io**. Self-hosted instances use a different URL and port *(e.g., `http://umbrel.local:3334/api`)*. See [Self-hosted public-pool](#self-hosted-public-pool) below | `https://public-pool.io:40557/api` |
 | `OFFLINE_TIMEOUT_MINUTES` | Minutes of inactivity before a miner is considered offline | `5` |
 | `HASHRATE_DROP_PERCENT` | Hashrate drop vs 24h average to trigger alert | `30` |
@@ -186,6 +187,7 @@ Tunable settings are in `config.py`:
 | `HASHRATE_ALERT_COOLDOWN_HOURS` | Hours before resending a LOW HASHRATE alert for the same miner. Resets automatically when hashrate recovers | `4` |
 | `NOTIFY_SESSION_BD_RECORD` | `False`: alert only when a miner beats their **all-time** best difficulty. `True`: alert on every new session best, even if it doesn't beat the all-time record | `False` |
 | `SHOW_TOP_BD` | Top BDs shown on Telegram | `5` |
+| `UPTIME_WINDOW_DAYS` | Days used to calculate the per-miner uptime percentage shown in the stats message *(based on session history, which is never purged)* | `365` |
 | `MESSAGE_EDIT_LIMIT_HOURS` | Hours before the stats message is recreated *(see note below)* | `45` |
 | `DATA_RETENTION_DAYS` | Days to keep hashrate history in the database | `90` |
 | `BACKUP_RETENTION_DAYS` | Days to keep database backups | `30` |
@@ -203,7 +205,7 @@ Tunable settings are in `config.py`:
 | Alert | Trigger |
 |-------|---------|
 | DISCONNECTION DETECTED | Miner's session ID changed *(new `startTime`)*. Includes previous session duration, estimated downtime, and reconnection time |
-| MINER OFFLINE | No activity for more than `OFFLINE_TIMEOUT_MINUTES` minutes |
+| MINER OFFLINE | No activity for more than `OFFLINE_TIMEOUT_MINUTES` minutes. Sent **once per outage** — no repeats until the miner comes back online |
 | LOW HASHRATE | Hashrate dropped more than `HASHRATE_DROP_PERCENT`% below the 24h average for `HASHRATE_ALERT_STRIKES` consecutive runs. Cooldown of `HASHRATE_ALERT_COOLDOWN_HOURS`h between alerts; resets on recovery |
 | NEW PERSONAL RECORD | Miner beat their **all-time** best difficulty *(default)*. Set `NOTIFY_SESSION_BD_RECORD = True` to also alert on session bests that don't beat the all-time record |
 | NEW MINER DETECTED | A previously unknown miner appeared |
@@ -218,7 +220,7 @@ Updates are **manual by default** — you stay in control of when new code goes 
 
 1. On every run, the bot checks the GitHub repository. When a new version is available, it sends a single notification to the group *(once per version, no spam)* with the version transition, the list of new commits, and how to apply it.
 2. To apply the update, choose whichever you prefer:
-   - **From Telegram**: send `/update` in the group. Only the **group owner or an administrator** can use this command; anyone else is politely refused. Since the bot runs on a schedule, the command **stays queued** and is executed on the bot's next scheduled start *(within ~30 min with the recommended cron)*. Sending `/update` several times queues just **one** update.
+   - **From Telegram**: tap the **Apply update** button on the notification, or send `/update` in the group. Only the **group owner or an administrator** can do this; anyone else is politely refused. Since the bot runs on a schedule, the request **stays queued** and is executed on the bot's next scheduled start *(within ~30 min with the recommended cron)* — the button disappears from the notification once the request is picked up. Pressing the button or sending `/update` several times queues just **one** update.
    - **From the server**: run `./update.sh` in the bot directory for immediate effect.
 3. Once applied, the bot confirms in the group with a nicely formatted message: version transition *(e.g., `v1.1.0 → v1.2.0`)*, and each commit with its description. The new code takes effect on the bot's next scheduled run.
 
